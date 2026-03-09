@@ -113,7 +113,7 @@ fact TimeStructure {
 
 fact StateTimeMapping {
   all t: Time | one s: State | s.time = t
-  all s: State | one s.time
+  //all s: State | one s.time
 }
 
 // Initialize integer fields to avoid inconsistencies
@@ -253,6 +253,7 @@ pred simpleScenario {
 }
 
 // Assertions
+//started compression after everything has been checked
 assert CPRRequiresPrerequisites {
   all s: State | s.compressionsStarted = True implies {
     s.sceneChecked = True
@@ -263,6 +264,7 @@ assert CPRRequiresPrerequisites {
   }
 }
 
+//breathe always happened after compression
 assert BreathsRequireCompressions {
   all s: State | s.rescueBreathsGiven = True implies {
     s.compressionsStarted = True
@@ -271,7 +273,7 @@ assert BreathsRequireCompressions {
 
 // Run commands
 run simpleScenario for 3
-run validRescueScenario for 6 but 6 Time, 1 Responder, 1 Victim
+run validRescueScenario for 6 but 6 Time,  6 State, 1 Responder, 1 Victim
 
 // Check assertions
 check CPRRequiresPrerequisites for 6 but 6 Time
