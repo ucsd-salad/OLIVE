@@ -1,12 +1,10 @@
 """
-Simple HuggingFace LLM demo.
+Simple Claude API LLM demo.
 
 This script:
-1. Loads a lightweight language model from HuggingFace
-2. Sends a prompt to the model
-3. Prints the generated response
-
-Works on CPU or GPU automatically.
+1. Defines a function to call the Claude API and get a response.
+2. Defines a function to generate a response from a given prompt.
+3. Contains a main function that demonstrates how to use the above functions.
 """
 
 from anthropic import Anthropic
@@ -31,10 +29,10 @@ def generate_response(prompt, temperature=0.7):
 
     Parameters
     ----------
-    generator : pipeline
-        HuggingFace text-generation pipeline.
     prompt : str
         Input prompt to the model.
+    temperature : float, optional
+        Sampling temperature for response generation (default is 0.7).
 
     Returns
     -------
