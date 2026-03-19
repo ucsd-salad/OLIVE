@@ -8,8 +8,12 @@ This script:
 """
 
 from anthropic import Anthropic
+from dotenv import load_dotenv
+import os
 
-client = Anthropic()
+load_dotenv()
+
+client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 def call_claude(prompt, max_new_tokens=200, temperature=0.7):
     message = client.messages.create(
