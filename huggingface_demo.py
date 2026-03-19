@@ -9,43 +9,23 @@ This script:
 Works on CPU or GPU automatically.
 """
 
-from transformers import pipeline
-import torch
+from anthropic import Anthropic
 
-def load_model(model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
-    """
-    Load a text generation pipeline.
+client = Anthropic(api_key="<YOUR_API_KEY>")
 
-    Parameters
-    ----------
-    model_name : str
-        HuggingFace model identifier.
-
-    Returns
-    -------
-    generator : transformers pipeline
-        A text generation pipeline ready to use.
-    """
-
-    # This parameter assigns our model to a GPU (if available, meaning it assigns it to the first available GPU on your 
-    # machine which will have id = 0 for machines that have NVIDIA CUDA GPUs, or "mps" for machines that have Apple Silicon 
-    # GPUs via Metal (MPS)), or assigns to CPU (id = -1) if no GPU is available.
-    if torch.cuda.is_available():
-        device = 0 # for machines that have NVIDIA CUDA GPUs
-    elif torch.backends.mps.is_available():
-        device = "mps" # for machines that have Apple Silicon GPUs via Metal (MPS)
-    else:
-        device = -1 # for CPU
-
-    generator = pipeline(
-        task="text-generation",
-        model=model_name,
-        device=device
+def call_claude(prompt, max_new_tokens=200, temperature=0.7):
+    message = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=max_new_tokens, # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
+        temperature=temperature, # randomness (0 = deterministic, higher temperature = more random)
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
     )
+    return message.content[0].text
 
-    return generator
 
-def generate_response(generator, prompt):
+def generate_response(prompt, temperature=0.7):
     """
     Feed a prompt to the model and return the generated text.
 
@@ -62,29 +42,17 @@ def generate_response(generator, prompt):
         Generated model response.
     """
 
-    # Wrap the prompt in a chat-style format expected by many instruction-tuned models
-    formatted_prompt = f"<|user|>\n{prompt}\n<|assistant|>\n"
-
     # Generate text
     # A token can be a whole word, part of a word, punctuation, or even whitespace depending on the tokenizer.
     # A tokenizer is a tool that converts text into tokens that the model can understand. 
     # The number of tokens in a prompt or response can be different from the number of words or characters, and it depends on the specific tokenizer used by the model.
-    outputs = generator(
-        formatted_prompt,
+    response_text = call_claude(
+        prompt,
         max_new_tokens=200,   # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
-        temperature=0.7,      # randomness (0 = deterministic, higher temperature = more random)
-        do_sample=True        # whether to sample from the distribution (True) or just take the most likely token (False)
+        temperature=0.7       # randomness (0 = deterministic, higher temperature = more random)
     )
 
-    # Pipeline returns a list of outputs, but we only asked the model to generate one completion/response, so we take the first (and only) completion and extract the generated text.
-    # we'd need to specify num_return_sequences > 1 in the generator call if we wanted multiple completions, and then we'd have to loop through the outputs to extract each one.
-    response_text = outputs[0]["generated_text"]
-
-    # Remove the prompt portion so we only return the model's completion
-    if response_text.startswith(formatted_prompt):
-        response_text = response_text[len(formatted_prompt):].strip()
-
-    return response_text
+    return response_text.strip()
 
 def run_alloy(alloy_code):
     """
@@ -111,18 +79,20 @@ def repair_loop(generator, alloy_code, max_attempts=5):
 
         #if success = true, no error. loop ends and return the code. 
         if success:
-            print("Alloy code is compilabel.")
+            print("Alloy code is compilable.")
             return True, alloy_code
 
         prompt = (
-            f"The following Alloy code has an error:\n\n"
+            f"You are an expert Alloy repair assistant. The following Alloy code has an error:\n\n"
             f"{alloy_code}\n\n"
             f"The error message is:\n\n"
             f"{output}\n\n"
-            f"Only change based on the error and return the corrected Alloy code. No extra comments"
+            f"Only make changes based on the error. Return ONLY valid Alloy code. No explanations."
         )
 
-        alloy_code = generate_response(generator, prompt)
+        # set temperature to 0 for deterministic output
+        # otherwise, we might get different "repairs" each time we run the loop, which could make it harder to converge on a working solution
+        alloy_code = generate_response(prompt, temperature=0) 
 
     print(f"Failed after {max_attempts} attempts.")
     return False, alloy_code
@@ -137,13 +107,9 @@ def main():
     # Example prompt
     prompt = "Generate a plan for how to acutely treat a broken bone"
 
-    print("Loading model...")
+    print("\nSending prompt to Claude...\n")
 
-    generator = load_model()
-
-    print("\nSending prompt to model...\n")
-
-    response = generate_response(generator, prompt)
+    response = generate_response(prompt)
 
     print("----- MODEL RESPONSE -----\n")
     print(response)
