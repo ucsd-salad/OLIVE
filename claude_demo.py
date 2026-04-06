@@ -54,7 +54,7 @@ def generate_response(prompt, temperature=0.7):
     # The number of tokens in a prompt or response can be different from the number of words or characters, and it depends on the specific tokenizer used by the model.
     response_text = call_claude(
         prompt,
-        max_new_tokens=200,   # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
+        max_new_tokens=1000,   # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
         temperature=0.7       # randomness (0 = deterministic, higher temperature = more random)
     )
 
@@ -139,7 +139,7 @@ def repair_loop(alloy_code_path, max_attempts=5):
     to fix it if there are errors. Repeat until valid or max_attempts reached.
     """
     attempts = 0
-    output_path = "candidate_plan.als"
+    output_path = "Alloy_Verifier/generated.als"
 
     while attempts < max_attempts:
         print(f"Attempt {attempts + 1} of {max_attempts}...")
@@ -191,7 +191,7 @@ def main():
 
     # implementing the loop 
     # 1) save the response to .als file 
-    # alloy_path = save_alloy_to_file(response, output_path="candidate_plan.als")
+    # alloy_path = save_alloy_to_file(response, output_path="Alloy_Verifier/generated.als")
     # 2) pass path to loop verifier 
     result_bool, alloy_code_path, output_logs = repair_loop('Alloy_Verifier/reference.als')
 
