@@ -65,23 +65,69 @@ def save_alloy_to_file(alloy_code, output_path="generated_model.als"):
         f.write(alloy_code)
     return output_path
 
+import os
+import subprocess
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+JAVA_DIR = os.path.join(BASE, "AlloyCommandline")
+
+JAR = os.path.join(JAVA_DIR, "alloy4.2.jar")
+JAVA_FILE = os.path.join(JAVA_DIR, "AlloyCommandline.java")
+CLASS_FILE = os.path.join(JAVA_DIR, "AlloyCommandline.class")
+
+
 def run_alloy(alloy_code_path):
     print(f"Running Alloy code from {alloy_code_path}...")
 
-    result = subprocess.run(
-        [
-            "java",
+    alloy_code_path = os.path.abspath(alloy_code_path)
+
+    # --- compile if needed: generate the .class files ---
+    if not os.path.exists(CLASS_FILE):
+        print("Compiling AlloyCommandline.java...")
+
+        compile_cmd = [
+            "javac",
             "-cp",
-            classpath,
-            "AlloyCommandline",
-            alloy_code_path
-        ],
+            "alloy4.2.jar",
+            "-sourcepath",
+            "",
+            "AlloyCommandline.java"
+        ]
+
+        compile = subprocess.run(
+            compile_cmd,
+            cwd=JAVA_DIR,
+            capture_output=True,
+            text=True
+        )
+
+        if compile.returncode != 0:
+            return False, "Compilation failed:\n" + compile.stderr
+
+    # --- run ---
+    run_cmd = [
+        "java",
+        "-cp",
+        ".:alloy4.2.jar",
+        "AlloyCommandline",
+        alloy_code_path
+    ]
+
+    result = subprocess.run(
+        run_cmd,
+        cwd=JAVA_DIR,
         capture_output=True,
         text=True
     )
 
-    success = result.returncode == 0
     output = result.stdout + result.stderr
+
+    # --- better success detection ---
+    success = (
+        result.returncode == 0
+        and "Syntax error" not in output
+        and "File cannot be found" not in output
+    )
 
     return success, output
 
