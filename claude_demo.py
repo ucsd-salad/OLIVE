@@ -104,7 +104,7 @@ def run_alloy(alloy_code_path):
         if compile.returncode != 0:
             return False, "Compilation failed:\n" + compile.stderr
 
-    # --- run ---
+    # --- run the alloy file---
     run_cmd = [
         "java",
         "-cp",
@@ -122,7 +122,7 @@ def run_alloy(alloy_code_path):
 
     output = result.stdout + result.stderr
 
-    # --- better success detection ---
+    # --- catch outputs of the terminal ---
     success = (
         result.returncode == 0
         and "Syntax error" not in output
@@ -206,6 +206,15 @@ def main():
 
     print("---output logs ---")
     print(output_logs)
+
+    # 3) if the code is compilable, then run check.als
+    final_result, final_log = run_alloy('Alloy_Verifier/check.als')
+    if final_result: 
+        print("Generated plan is safe")
+    else: 
+        print("Generated plan is NOT safe")
+        print(final_log)
+
 
     # the relevant Alloy plan will be injected into the prompt via a tool call (i.e. the LLM will call a tool that retrieves the Alloy plan from the database and injects it into the prompt)
     # The model will generate a response that is the Alloy candidate plan
