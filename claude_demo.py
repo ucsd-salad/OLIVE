@@ -145,30 +145,36 @@ def repair_loop(alloy_code_path, max_attempts=5):
         print(f"Attempt {attempts + 1} of {max_attempts}...")
         attempts += 1
         #run the given alloy code and catch the output 
-        success, output = run_alloy(alloy_code_path)
+        success, output_logs = run_alloy(alloy_code_path)
+        print("Alloy output logs:")
+        print(output_logs)
 
         #if success = true, no error. loop ends and return the code. 
         if success:
             print("Alloy code is compilable.")
-            return True, alloy_code_path, output
+            return True, alloy_code_path, output_logs
+
+        # read the Alloy file
+        with open(alloy_code_path, "r") as f:
+            alloy_code = f.read()
 
         prompt = (
             f"You are an expert Alloy repair assistant. The following Alloy code has an error:\n\n"
-            f"{alloy_code_path}\n\n"
+            f"{alloy_code}\n\n"
             f"The error message is:\n\n"
-            f"{output}\n\n"
+            f"{output_logs}\n\n"
             f"Only make changes based on the error. Return ONLY valid Alloy code. No explanations."
         )
 
         # set temperature to 0 for deterministic output
         # otherwise, we might get different "repairs" each time we run the loop, which could make it harder to converge on a working solution
-        alloy_code = generate_response(prompt, temperature=0) 
-        alloy_code_path = save_alloy_to_file(alloy_code, output_path=output_path)
+        gen_alloy_code = generate_response(prompt, temperature=0) 
+        alloy_code_path = save_alloy_to_file(gen_alloy_code, output_path=output_path)
 
     print("Failed after {max_attempts} attempts.")
-    return False, output_path, output
+    return False, output_path, output_logs
 
- 
+    
 
 def main():
     """
