@@ -19,7 +19,7 @@ load_dotenv()
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-def call_claude(prompt, max_new_tokens=200, temperature=0.7):
+def call_claude(prompt, max_new_tokens=4000, temperature=0.7):
     message = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=max_new_tokens, # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
@@ -133,7 +133,7 @@ def run_alloy(alloy_code_path):
 
 
 # Aila's implementation of syntax verifier loop 
-def repair_loop(alloy_code_path, max_attempts=5):
+def repair_syntax_loop(alloy_code_path, max_attempts=5):
     """
     Given an initial piece of Alloy code, validate it and ask the LLM
     to fix it if there are errors. Repeat until valid or max_attempts reached.
@@ -193,7 +193,7 @@ def main():
     # 1) save the response to .als file 
     # alloy_path = save_alloy_to_file(response, output_path="Alloy_Verifier/generated.als")
     # 2) pass path to loop verifier 
-    result_bool, alloy_code_path, output_logs = repair_loop('Alloy_Verifier/reference.als')
+    result_bool, alloy_code_path, output_logs = repair_syntax_loop('Alloy_Verifier/reference.als')
 
     # print("----- MODEL RESPONSE -----\n")
     # print('response')

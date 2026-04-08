@@ -1,3 +1,5 @@
+The error message about `AlloyCommandline.java` is not related to the Alloy model syntax itself, but rather to the tooling. However, looking at the Alloy code, there is a missing `--` comment prefix on one of the section headers which could cause a parsing issue. Let me also ensure the model has a proper `run` command and fix the missing comment marker.
+
 ```alloy
 module reference
 
@@ -9,7 +11,7 @@ one sig VertebralPain extends Symptom {}
 one sig SensoryChange extends Symptom {}
 one sig WeaknessOrParalysis extends Symptom {}
 
-----------------STATE------------------------
+-- ----------------STATE------------------------
 abstract sig PatState {}
 
 one sig SpineInjurySuspected extends PatState {}
@@ -26,7 +28,7 @@ pred MovementStateConsistency {
             lone (p.states & MovementState)
 }
 
------------------ ACTION DEFS -----------------
+-- ----------------- ACTION DEFS -----------------
 
 abstract sig Action {}
 one sig ProtectHeadAndSpine extends Action {}
@@ -95,19 +97,4 @@ pred NextActionToDo[a: Action] {
 
     ( some P.symptoms
       and no (P.states & MovementState)
-      and a = AskForInfo
-      and a not in P.done
-    )
-
-    or
-
-    ( some P.symptoms
-      and CannotMoveSpine in P.states
-      and a = Immobilize
-      and a not in P.done
-    )
-
-    or
-
-    ( some P.symptoms
-      and CanMoveSpine in P.states
+      and
