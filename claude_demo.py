@@ -7,6 +7,8 @@ This script:
 3. Contains a main function that demonstrates how to use the above functions.
 """
 
+# have to run git submodule update --init --recursive first 
+
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
@@ -19,7 +21,7 @@ load_dotenv()
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-def call_claude(prompt, max_new_tokens=200, temperature=0.7):
+def call_claude(prompt, max_new_tokens=4000, temperature=0.7):
     message = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=max_new_tokens, # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
@@ -119,7 +121,6 @@ def run_alloy(alloy_code_path):
         capture_output=True,
         text=True
     )
-
     output = result.stdout + result.stderr
 
     # --- catch outputs of the terminal ---
@@ -129,11 +130,29 @@ def run_alloy(alloy_code_path):
         and "File cannot be found" not in output
     )
 
-    return success, output
+    #couldn't run  
+    if result.returncode != 0:
+        status = "ERROR"
+    #syntax error  
+    elif "Syntax error" in output:
+        status = "SYNTAX ERROR"
+    #no instance found (inconsistent)
+    elif "No instance" in output or "Inconsistent" in output:
+        status = "INCONSISTENT" # -- this is what we want for compare.als 
+    #consistent
+    elif "Predicate is consistent" in output or "Instance found" in output:
+        status = "CONSISTENT" 
+    #no counter example
+    elif "No counterexample found" in output:
+        status = "NO COUNTEREXAMPLE"
+    else:   
+        status = "NA"
+
+    return success, output, status
 
 
 # Aila's implementation of syntax verifier loop 
-def repair_loop(alloy_code_path, max_attempts=5):
+def repair_syntax_loop(alloy_code_path, max_attempts=5):
     """
     Given an initial piece of Alloy code, validate it and ask the LLM
     to fix it if there are errors. Repeat until valid or max_attempts reached.
@@ -142,16 +161,19 @@ def repair_loop(alloy_code_path, max_attempts=5):
     output_path = "Alloy_Verifier/generated.als"
 
     while attempts < max_attempts:
-        print(f"Attempt {attempts + 1} of {max_attempts}...")
+        print(f"Syntax Repair Attempt {attempts + 1} of {max_attempts}...")
         attempts += 1
         #run the given alloy code and catch the output 
-        success, output_logs = run_alloy(alloy_code_path)
+        success, output_logs, output_status = run_alloy(alloy_code_path)
         print("Alloy output logs:")
         print(output_logs)
+        
 
         #if success = true, no error. loop ends and return the code. 
         if success:
             print("Alloy code is compilable.")
+            print("Alloy status:")
+            print(output_status)
             return True, alloy_code_path, output_logs
 
         # read the Alloy file
@@ -174,7 +196,67 @@ def repair_loop(alloy_code_path, max_attempts=5):
     print("Failed after {max_attempts} attempts.")
     return False, output_path, output_logs
 
-    
+def repair_logic_loop(alloy_code_path, max_attempts=5):
+    """
+    Similar to the syntax repair loop, but focused on logical errors (e.g., not consistent with specification)
+    The prompt would need to be adjusted to provide information about the logical errors or counterexamples.
+    """
+
+    attempts = 0
+    output_path = "Alloy_Verifier/compare.als"  # keep overwriting same file if you want
+
+    while attempts < max_attempts:
+        print(f"Logic Repair Attempt {attempts + 1}/{max_attempts}")
+        attempts += 1
+
+        success, output_logs, status = run_alloy("Alloy_Verifier/compare.als")
+
+        print("Alloy output:")
+        print(output_logs)
+        print("Status:", status)
+
+        # generated.als is and consistent with the reference constraints 
+        if status == "INCONSISTENT":
+            return True, output_path, output_logs
+
+        # generated.als is NOT consistent
+        with open("Alloy_Verifier/compare.als", "r") as f:
+            compare_code = f.read()
+
+        prompt = f"""
+        You are an expert Alloy repair assistant.
+
+        You are given an Alloy file that performs a correctness check. The current GeneratedPlan 
+        is violating reference constraints, which means that the plan is not consistent with the specification. 
+
+        IMPORTANT RULE:
+        - You are ONLY allowed to modify the predicate: GeneratedPlan {{ ... }}
+        - You must NOT modify:
+            - ReferenceConstraints
+            - run statements
+            - module declarations
+            - any other part of the file
+
+        GOAL:
+        Fix GeneratedPlan so that it does NOT allow any behavior that violates reference constatins.
+
+        CURRENT Alloy code:
+        {compare_code}
+
+        Alloy output:
+        {output_logs}
+
+        Return ONLY the corrected Alloy code. No explanations.
+        """
+
+        gen_code = generate_response(prompt, temperature=0)
+
+        with open("Alloy_Verifier/compare.als", "w") as f:
+            f.write(gen_code)
+
+    print("Logic failed after max attempts.")
+    return False, alloy_code_path, output_logs
+   
 
 def main():
     """
@@ -193,7 +275,10 @@ def main():
     # 1) save the response to .als file 
     # alloy_path = save_alloy_to_file(response, output_path="Alloy_Verifier/generated.als")
     # 2) pass path to loop verifier 
-    result_bool, alloy_code_path, output_logs = repair_loop('Alloy_Verifier/generated.als')
+    result_bool, alloy_code_path, output_logs = repair_syntax_loop('Alloy_Verifier/generated.als')
+
+    # print("----- MODEL RESPONSE -----\n")
+    # print('response')
 
     print("---the generated plan was compilable? ")
     print(result_bool)
@@ -204,13 +289,17 @@ def main():
     print("---output logs ---")
     print(output_logs)
 
-    # 3) if the code is compilable, then run check.als
-    final_result, final_log = run_alloy('Alloy_Verifier/check.als')
-    if final_result: 
-        print("Generated plan is safe")
+    # 3) if the code is compilable, then run compare.als
+    logic_bool, logic_code_path, logic_output_logs = repair_logic_loop('Alloy_Verifier/compare.als')
+    if logic_bool:
+        print("No counterexample found → model is consistent with reference.")
+        print("Safe plan stored in", logic_code_path)
+        print("Safe plan Alloy output logs:", logic_output_logs)
     else: 
-        print("Generated plan is NOT safe")
-        print(final_log)
+        print("Counterexample found → model is NOT consistent with reference after multiple attempts.")
+        print("Generated UNSAFE plan stored in", logic_code_path)
+        print("Generated UNSAFE plan Alloy output logs:", logic_output_logs)
+
 
 
     # the relevant Alloy plan will be injected into the prompt via a tool call (i.e. the LLM will call a tool that retrieves the Alloy plan from the database and injects it into the prompt)
@@ -219,7 +308,6 @@ def main():
     # Then, if the plan doesn't verify, I think we we should do a few-shot prompting approach where we feed the model a few examples of plans it generated that failed verification, along with the Alloy counterexamples that explain why they failed, to help the model learn to generate plans that are more likely to verify successfully
     # basically this is a loop where we generate a candidate plan, verify it, and if it fails verification, we feed the model the failed plan and the counterexample, and ask it to generate a new candidate plan, and we repeat until we get a plan that verifies successfully
     # Then, we ask the model to translate the Alloy plan to English and have the human review it
-
 
 if __name__ == "__main__":
     main()
