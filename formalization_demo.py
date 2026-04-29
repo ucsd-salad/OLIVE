@@ -25,6 +25,11 @@ def call_claude(prompt: str, max_new_tokens: int = 4000, temperature: float = 0)
     return message.content[0].text
 
 
+def _write_source_lines(file_path: str, lines: Sequence[str]) -> None:
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+
 @dataclass
 #each sliced block should be defined as the following:
 class Block:
@@ -53,8 +58,7 @@ class AlloyBackendSlicer:
     _RUN_CHECK_RE = re.compile(r"^\s*(run|check)\b(?:\s+([A-Za-z_]\w*))?")
     _WORD_RE = re.compile(r"\b[A-Za-z_]\w*\b")
 
-    def __init__(self, alloy_jar_path: str, seed: Optional[int] = None) -> None:
-        self.alloy_jar_path = os.path.abspath(alloy_jar_path)
+    def __init__(self, seed: Optional[int] = None) -> None:
         self._rng = random.Random(seed)
 
     @staticmethod
@@ -227,7 +231,6 @@ class AlloyBackendSlicer:
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AlloyBackendSlicer REPL Loop")
     parser.add_argument("--als", required=True, help="Path to target .als file")
-    parser.add_argument("--jar", default="alloy4.2.jar", help="Path to alloy4.2.jar")
     parser.add_argument("--seed", type=int, default=None, help="Optional random seed")
     return parser
 
@@ -236,58 +239,105 @@ if __name__ == "__main__":
     args = _build_arg_parser().parse_args()
 
     print("Starting Alloy slicing...")
-    slicer = AlloyBackendSlicer(alloy_jar_path=args.jar, seed=args.seed)
-    pool = slicer.extract_all_snippets(args.als)
-        
-    total_count = len(pool)
+    slicer = AlloyBackendSlicer(seed=args.seed)
+    source_lines = slicer._read_source_lines(args.als)
+    targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
+    total_count = len(targets)
     if total_count == 0:
         print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
         exit()
 
     print(f"\nGenerated {total_count} slices. Entering review loop...\n")
-    
-    completed = 0
-    for current_snippet in pool:
-        remaining = total_count - completed
-        print("=" * 70)
-        print(f"Progress: reviewed {completed}/{total_count} | remaining {remaining}")
-        print("=" * 70)
-        print(current_snippet)
-        print("=" * 70)
-        
-        while True:
+
+    current_index = 0
+    while True:
+        source_lines = slicer._read_source_lines(args.als)
+        targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
+        total_count = len(targets)
+        if total_count == 0:
+            print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
+            break
+        if current_index >= total_count:
+            break
+
+        reviewing = True
+        while reviewing:
+            current_target = targets[current_index]
+            target_code = "".join(source_lines[current_target.start : current_target.end + 1]).strip()
+            related_sigs = slicer._target_related_sigs(current_target, sig_blocks, source_lines)
+            context = slicer._build_context(module_open_lines, related_sigs, source_lines)
+
+            header = f"// Target: {current_target.kind} '{current_target.name}'"
+            if current_target.params:
+                header += f" | Params: {current_target.params}"
+
+            parts = [header]
+            if context:
+                parts.append(context)
+            parts.append(target_code)
+            current_snippet = "\n\n".join(parts) + "\n"
+
+            remaining = total_count - current_index
+            print("=" * 70)
+            print(f"Progress: reviewed {current_index}/{total_count} | remaining {remaining}")
+            print("=" * 70)
+            print(current_snippet)
+            print("=" * 70)
+
             cmd = input("Command [Accept / Reject: feedback / Stop] > ").strip()
             cmd_lower = cmd.lower()
-            
+
             if cmd_lower == "accept":
                 print("Block Accepted.\n")
-                completed += 1
-                break 
-                
-            elif cmd_lower.startswith("reject"):
-                feedback = cmd[6:].strip(" :")
-                prompt = f""" You are repairing one Alloy snippet. RULES:
-                        - Output ONLY the full snippet below.
-                        - Preserve the header and context exactly.
-                        - Modify ONLY the target block at the bottom.
-                        - Do not include explanations.
-
-                        Current snippet:
-                        {current_snippet}
-
-                        User feedback:
-                        {feedback}
-                        """
-                current_snippet = call_claude(prompt, temperature=0)
-                print("Repaired snippet:\n")
-                print(current_snippet)
-                print("=" * 70)
+                current_index += 1
+                reviewing = False
                 continue
-                
-            elif cmd_lower == "stop":
+
+            if cmd_lower.startswith("reject"):
+                feedback = cmd[6:].strip(" :")
+                prompt = f"""
+                            You are repairing an Alloy file.
+
+                            RULES:
+                            - Output ONLY the full updated file content.
+                            - Apply the user feedback precisely.
+                            - Do not include explanations.
+
+                            Current file:
+                            {''.join(source_lines)}
+
+                            User feedback:
+                            {feedback}
+                           """
+                revised_file = call_claude(prompt, temperature=0)
+                _write_source_lines(args.als, [revised_file])
+                print("Repaired file saved. Re-slicing targets...\n")
+
+                source_lines = slicer._read_source_lines(args.als)
+                targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
+                total_count = len(targets)
+                if total_count == 0:
+                    print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
+                    reviewing = False
+                    break
+
+                match_index = None
+                for idx, target in enumerate(targets):
+                    if (
+                        target.kind == current_target.kind
+                        and target.name == current_target.name
+                        and target.params == current_target.params
+                    ):
+                        match_index = idx
+                        break
+
+                current_index = match_index if match_index is not None else min(current_index, len(targets) - 1)
+                continue
+
+            if cmd_lower == "stop":
                 print("Stop received. Exiting.")
                 exit()
-            else:
-                print("Unknown command. Use Accept, Reject, or Stop.")
+
+            print("Unknown command. Use Accept, Reject, or Stop.")
 
     print("\nReview loop finished: all slices processed.")
