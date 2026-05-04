@@ -238,11 +238,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 if __name__ == "__main__":
     args = _build_arg_parser().parse_args()
 
+    if args.seed is None:
+        args.seed = random.randint(0, 999999)
+        print(f"No seed provided. Using auto-generated seed: {args.seed}")
+        
     print("Starting Alloy slicing...")
     slicer = AlloyBackendSlicer(seed=args.seed)
     source_lines = slicer._read_source_lines(args.als)
     targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
     total_count = len(targets)
+    slicer._rng.shuffle(targets)
     if total_count == 0:
         print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
         exit()
@@ -251,12 +256,6 @@ if __name__ == "__main__":
 
     current_index = 0
     while True:
-        source_lines = slicer._read_source_lines(args.als)
-        targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
-        total_count = len(targets)
-        if total_count == 0:
-            print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
-            break
         if current_index >= total_count:
             break
 
@@ -315,6 +314,10 @@ if __name__ == "__main__":
 
                 source_lines = slicer._read_source_lines(args.als)
                 targets, sig_blocks, module_open_lines = slicer._parse_source_blocks(source_lines)
+
+                slicer._rng.seed(args.seed)
+                slicer._rng.shuffle(targets)
+
                 total_count = len(targets)
                 if total_count == 0:
                     print("No valid Fact/Pred/Fun/Assert/Command blocks found.")
