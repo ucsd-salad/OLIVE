@@ -132,22 +132,6 @@ pred ReferenceConstraints {
 
 
 pred GeneratedPlan {
-    ReferenceConstraints
-
-    -- Encode the scenario: patient has vertebral pain, cannot move spine, spine injury suspected
-    VertebralPain in P.symptoms
-    CannotMoveSpine in P.states
-    SpineInjurySuspected in P.states
-
-    -- Nothing has been done yet (they just fell)
-    no P.done
-
-    -- The immediate next actions to take
-    Immobilize in NextSteps.actions
-    ProtectHeadAndSpine in NextSteps.actions
-
-    -- NextSteps.actions contains exactly the actions recommended by NextActionToDo
-    all a: Action | a in NextSteps.actions iff NextActionToDo[a]
 }
 
 

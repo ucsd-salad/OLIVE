@@ -270,7 +270,8 @@ def generate_and_verify(user_prompt, rounds=1):
 # ------------------ Main ------------------
 
 def main():
-    prompt = "Someone fell and their back hurts and they can barely move it, what is my immediate next step"
+    #insert prompt below: (e.g. "someone just fell and their spine hurts, what do i do?")
+    prompt = ""
 
     generate_and_verify(prompt)
 
