@@ -1,5 +1,5 @@
 # I see a woman collapsed on the floor in a flooded basement with exposed electrical wires sparking nearby. What should I do?
-1. ChatGPT answer:
+* ChatGPT answer:
 The first thing you should do is ensure the scene is safe before appproaching the patient.
 In your scenario there is floodwater and exposed sparking eelectrical wires, which means there is a serious risk of electocution. If you enter the area immediately, you could become anothher victim.
 
@@ -15,9 +15,11 @@ Scene safety comes before patient care. You must protectyourself and others firs
 
 Answer: Ensure the scene is safe (avoid the electrical hazardbefore approaching the victim).
 
-2. Out loop:
-* Syntax Attempt five times, Logic Attempt three times.
-* translate controlled english result:
+
+* Our loop:
+Syntax Attempt five times, Logic Attempt three times.
+
+translate controlled english result:
 Predicate GeneratedPlan:
 1. TimeStructure
 2. StateTimeMapping
