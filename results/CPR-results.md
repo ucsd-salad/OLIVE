@@ -137,6 +137,7 @@ Predicate GeneratedPlan:
 
 ============================================================
 Generation 1
+```alloy
 pred GeneratedPlan {
   TimeStructure
   StateTimeMapping
@@ -241,9 +242,11 @@ pred GeneratedPlan {
   CPRRequiresPrerequisites
   BreathsRequireCompressions
 }
+```
 
 ============================================================
 Generation 2
+```alloy
 pred GeneratedPlan {
   -- Time structure
   T1.next = T2
@@ -398,9 +401,11 @@ pred GeneratedPlan {
   }
   all s: State | s.rescueBreathsGiven = True implies s.compressionsStarted = True
 }
+```
 
 ============================================================
 Generation 3
+```alloy
 pred GeneratedPlan {
   -- Time structure
   T1.next = T2
@@ -512,12 +517,14 @@ pred GeneratedPlan {
     s.victimBleeding = NoBleeding
   }
 }
+```
 
 ============================================================
 Generation 4
 Looking at the error, the issue is likely that `0` is being used as a value assignment to `interruptionTime`, but in Alloy, integer literals need to be used properly. Also, the `let` binding with `all` quantifier over a union set might cause issues. Let me fix the predicate:
 
-```pred GeneratedPlan {
+```alloy
+pred GeneratedPlan {
   -- Time structure
   T1.next = T2
   T2.next = T3
@@ -632,6 +639,7 @@ Looking at the error, the issue is likely that `0` is being used as a value assi
 
 ============================================================
 Generation 5
+```alloy
 pred GeneratedPlan {
   -- Time structure
   T1.next = T2
@@ -744,14 +752,14 @@ pred GeneratedPlan {
     s.victimBleeding = NoBleeding
   }
 }
-
+```
 ============================================================
 Generation 6
 Looking at the error, the issue is that the `let` block at the end uses `all s: ss { ... }` with curly braces for multiple constraints, but Alloy doesn't support that syntax directly inside a `let`/`all` block in this way. The constraints need to be joined with `and`. Also, the closing `}` of the predicate might be misaligned with the `let` block.
 
 Let me fix the predicate by converting the block with curly braces into conjunctions:
 
-```
+```alloy
 pred GeneratedPlan {
   T1.next = T2
   T2.next = T3
@@ -801,7 +809,7 @@ So the plan violates `ProtocolOrder` because emergency is called at S2 without v
 
 I need to fix the plan so that in an Unsafe environment, `emergencyCalled` remains False (since `victimAssessed` can never be True, and `emergencyCalled` requires prior `victimAssessed`).
 
-```
+```alloy
 pred GeneratedPlan {
   T1.next = T2
   T2.next = T3
