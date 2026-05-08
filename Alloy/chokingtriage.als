@@ -105,3 +105,13 @@ fact ChokingControlFlow {
             CallEmergency in i.actions
     }
 }
+
+pred GeneratedPlan {
+
+}
+
+run {
+    GeneratedPlan
+    and not in ReferenceConstraints
+} for 10 Action, 10 Dependency, 1 PatientStatus
+}
