@@ -6,7 +6,7 @@ Prompt: "A baby is choking and cannot breathe properly and they're not awake, wh
 
 ### Pipeline Output
 From Generated Plan predicate:
-
+```
 pred GeneratedPlan {
     ReferenceConstraints
     some s: State |
@@ -21,7 +21,7 @@ pred GeneratedPlan {
         and s.chestThrustsDone = False
         and s.abdominalThrustsDone = False
 }
-
+```
 + Recognizes that the person is an infant
 + Knows that they're unconcious and that their airway is completely blocked, meaning they cannot cough or talk
 + Knows that this means that CPR and emergency needs to be called
