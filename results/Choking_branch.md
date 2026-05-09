@@ -88,6 +88,78 @@ SAFE PLAN VERIFIED
 
 ### Chat-GPT Output
 ```
+Call emergency services (911 in the U.S.) immediately if someone else is there, or put the phone on speaker while helping.
+
+For an unconscious choking baby (under 1 year old):
+
+1. Lay the baby face-up on a firm surface.
+2. Open the airway gently by tilting the head slightly back.
+3. Look in the mouth. If you can clearly see an object, remove it carefully with a finger. Do not do blind finger sweeps.
+4. Give 2 gentle rescue breaths:
+**Cover the baby’s mouth and nose with your mouth.
+**Give small puffs of air, just enough to make the chest rise.
+5. If the chest does not rise, start cycles of:
+**30 chest compressions using 2 fingers in the center of the chest just below the nipple line, about 1.5 inches deep, at a fast steady rate.
+**Then look in the mouth again.
+**Try 2 rescue breaths again.
+6. Continue until:
+**the object comes out,
+**the baby starts breathing,
+**or emergency responders take over.
+
+If another adult is nearby, have them get help and an AED if available.
+A visual guide from the American Red Cross can help: Infant Choking and CPR steps
+```
+
+## Prompt #2
+
+Prompt: "Someone near me is choking and is currently conscious, what do i do?"
+
+## Pipeline Output
+```
+pred GeneratedPlan {
+    ReferenceConstraints
+
+    some s: State |
+        s.consciousness = Conscious
+        and s.person = NonInfant
+        and s.airway = Complete
+        and s.ability = CannotCoughOrTalk
+        and s.backBlowsDone = True
+        and s.abdominalThrustsDone = True
+        and s.emergencyCalled = True
+        and s.encourageCoughingDone = False
+        and s.chestThrustsDone = False
+        and s.cprDone = False
+}
+```
++ The pipeline says that this isn't an infant when not specified and knows that they're concious
++ Airway is said to be completely blocked which is accurate
++ Because their airways are completely blocked they cannot cought or talk, and the encourageCoughingDone is set to false because of this
++ 
+
+Claude Thought Process:
+```
+============================================================
+
+Looking at this problem, I need to find why `GeneratedPlan and not ReferenceConstraints` can be satisfied (i.e., a counterexample exists).
+
+The `GeneratedPlan` specifies a state with the right action flags, but `ReferenceConstraints` includes `Dependencies` which requires certain `Dependency` atoms to exist. The issue is that `not ReferenceConstraints` can be satisfied by violating the `Dependencies` predicate (or any other state's constraints), even when the specific state in `GeneratedPlan` is correct.
+
+The key insight: `ReferenceConstraints` uses `all s: State`, meaning ALL states must satisfy the constraints. If there are other states in the model that violate the constraints, `ReferenceConstraints` fails. Also, `Dependencies` must hold.
+
+To fix this, `GeneratedPlan` must ensure that:
+1. **All states** satisfy the reference constraints (not just the one we care about).
+2. The `Dependencies` predicate holds.
+3. Every state in the model satisfies the case implications.
+
+So `GeneratedPlan` should essentially enforce `ReferenceConstraints` alongside the specific plan, or constrain all states to comply. The simplest correct approach is to include `ReferenceConstraints` within `GeneratedPlan` and ensure the specific state exists.
+```
+
+============================================================
+
+### Chat-GPT Ouput
+```
 If the person can still cough or speak, encourage them to keep coughing. Do not hit their back yet if they are coughing effectively.
 
 If they cannot speak, cry, or breathe, or they’re making silent choking motions:
@@ -119,54 +191,6 @@ Back blows → abdominal thrusts → repeat.
 
 5 back blows →5 abdominal thrusts →repeat
 ```
-
-## Prompt #2
-
-Prompt: "Someone near me is choking and is currently conscious, what do i do?"
-
-## Pipeline Output
-```
-pred GeneratedPlan {
-    ReferenceConstraints
-
-    some s: State |
-        s.consciousness = Conscious
-        and s.person = NonInfant
-        and s.airway = Complete
-        and s.ability = CannotCoughOrTalk
-        and s.backBlowsDone = True
-        and s.abdominalThrustsDone = True
-        and s.emergencyCalled = True
-        and s.encourageCoughingDone = False
-        and s.chestThrustsDone = False
-        and s.cprDone = False
-}
-```
-+ The pipeline says that this isn't an infant when not specified and knows that they're concious
-+  gf
-
-Claude Thought Process:
-```
-============================================================
-
-Looking at this problem, I need to find why `GeneratedPlan and not ReferenceConstraints` can be satisfied (i.e., a counterexample exists).
-
-The `GeneratedPlan` specifies a state with the right action flags, but `ReferenceConstraints` includes `Dependencies` which requires certain `Dependency` atoms to exist. The issue is that `not ReferenceConstraints` can be satisfied by violating the `Dependencies` predicate (or any other state's constraints), even when the specific state in `GeneratedPlan` is correct.
-
-The key insight: `ReferenceConstraints` uses `all s: State`, meaning ALL states must satisfy the constraints. If there are other states in the model that violate the constraints, `ReferenceConstraints` fails. Also, `Dependencies` must hold.
-
-To fix this, `GeneratedPlan` must ensure that:
-1. **All states** satisfy the reference constraints (not just the one we care about).
-2. The `Dependencies` predicate holds.
-3. Every state in the model satisfies the case implications.
-
-So `GeneratedPlan` should essentially enforce `ReferenceConstraints` alongside the specific plan, or constrain all states to comply. The simplest correct approach is to include `ReferenceConstraints` within `GeneratedPlan` and ensure the specific state exists.
-```
-
-============================================================
-
-### Chat-GPT Ouput
-
 
 ## Prompt #3
 
