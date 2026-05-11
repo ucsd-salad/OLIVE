@@ -281,6 +281,14 @@ def split_block_statements(body: str) -> List[str]:
     current: List[str] = []
     depth = 0
 
+    def should_continue(line_text: str) -> bool:
+        return bool(
+            re.search(
+                r"(?:\|\s*|=>\s*|\bimplies\b\s*|\bor\b\s*|\band\b\s*|\|\|\s*|&&\s*|\belse\b\s*)$",
+                line_text,
+            )
+        )
+
     for raw_line in body.splitlines():
         line = strip_inline_comment(raw_line)
         if not line:
@@ -296,10 +304,10 @@ def split_block_statements(body: str) -> List[str]:
 
         if depth <= 0:
             statement = normalize_space(" ".join(current))
-            if statement:
+            if statement and not should_continue(statement):
                 statements.append(statement)
-            current = []
-            depth = 0
+                current = []
+                depth = 0
 
     if current:
         statement = normalize_space(" ".join(current))
@@ -771,6 +779,20 @@ class ControlledEnglishTranslator:
             rendered = "; ".join(self.translate_inline(p) for p in parts)
             return f"Both the following are true: {rendered}."
 
+        _TEMPORAL_UNARY = [
+            ("always",      "in every current and future state"),
+            ("eventually",  "in some current or future state"),
+            ("after",       "in the immediately next state"),
+            ("before",      "in the immediately previous state"),
+            ("once",        "in some previous state including the current one"),
+            ("historically","in every previous state including the current one"),
+        ]
+        for keyword, phrase in _TEMPORAL_UNARY:
+            m = re.match(rf"^{keyword}\s+(.+)$", text, re.IGNORECASE)
+            if m:
+                inner = self.translate_inline(m.group(1).strip())
+                return f"{inner} holds {phrase}."
+        
         # Cardinality comparison:
         # #p.steps >= 1
         m = re.match(r"^#\s*(.+?)\s*(=|!=|>=|=<|<=|>|<)\s*(-?\d+)$", text)
@@ -885,6 +907,9 @@ class ControlledEnglishTranslator:
         return quantifier, var_decls, body
 
     def render_quantifier(self, quantifier: str, var_decls: str, body: str) -> str:
+
+        var_decls = re.sub(r"\bdisj\b", "pairwise distinct", var_decls)
+
         body_text = self.translate_inline(body)
 
         quantifier_text = {
@@ -975,7 +1000,7 @@ class ControlledEnglishTranslator:
 
     def fallback(self, text: str) -> str:
         text = normalize_space(text)
-
+        
         if self.config.fallback_enabled and explain_with_patterns is not None:
             try:
                 explained = explain_with_patterns(text)
@@ -984,7 +1009,7 @@ class ControlledEnglishTranslator:
             except Exception:
                 pass
 
-        return f"Raw Alloy expression: {text}."
+        return text
     
     def render_block_items_multiline(self, statements: List[str], indent: str = "    ") -> str:
         """

@@ -16,11 +16,17 @@ run {
 4) run `python pipeline.py` or python3 if that's what you have. 
    - The code should tell you exactly how many iterations of the syntax and logic loop it runs and if it arrives at a safe plan. 
 5) After each run of the file, check `pred GeneratedPlan {}` in compare.als to see the plan it generated and sanity check it. 
-6) After each un of the file, check the ai_log.txt to see the process of what the LLM was outputting. 
+6) After each run of the file, check the ai_log.txt to see the process of what the LLM was outputting. 
 * before running again, either with same prompt or different, make sure to clear out the content inside `pred GeneratedPlan {}` to reset the compare.als file. 
 
 # Comparison 
+* testing numerous cases under the following scenario: how initial prompt let ai creates a plan that is safe or not, how many iterations of repair loop can this initial plan become safe or not, better be a graph
 7) Run the exact same prompt on Claude website or ChatGPT, and see if it outputs a safe plan 
 8) Compare the results and the plans generated, with and without our pipeline. 
 9) Create a new file in the reuslts folder (where this tutorial is) and give it the same name as your branch. 
 10) For each prompt you run, take notes on what you observe, the process of the LLM, and the safety of the plan in the file you created. 
+
+# Formalization
+The formalization tool can only translate Alloy to controlled English, but it is still easier to understand. 
+* python formalization/pipeline_formalization.py --als Alloy_Verifier/compare.als 
+* You can also create another .als file in the folder if you only want to see the generated plan
