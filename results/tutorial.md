@@ -11,7 +11,7 @@ run {
     and not ReferenceConstraints
 } for 10 Action, 10 Dependency, 1 PatientStatus
 `
-3) After your compare.als file is consistent with your references, change the prompt variable in main function of pipeline.py (should be line 273). 
+3) After your compare.als file is consistent with your references, change the prompt variable in main function of pipeline.py (should be line 274). 
    - Make sure the prompt is realistic and something an actual user would give their LLMs to ask for advice. Be intentional with the symptoms you give, the actions you have already taken, and then situation you are in. 
 4) run `python pipeline.py` or python3 if that's what you have. 
    - The code should tell you exactly how many iterations of the syntax and logic loop it runs and if it arrives at a safe plan. 
