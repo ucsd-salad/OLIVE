@@ -1,0 +1,206 @@
+Comprehensive Aquatic Center Safety and Operations Manual
+
+This manual outlines the uncompromising safety standards, behavioral guidelines, strict operational dependencies, and multi-tiered emergency protocols for our Aquatic Center. Safety is a mathematically and procedurally defined standard, reliant on the unbroken chain of responsibility between our highly trained staff, facility infrastructure, and our visitors.
+
+1. Glossary of Terms and Operational Definitions
+AED (Automated External Defibrillator): A portable electronic device that automatically diagnoses life-threatening cardiac arrhythmias and is able to treat them through defibrillation.
+BBP (Bloodborne Pathogens): Infectious microorganisms in human blood that can cause disease in humans (e.g., Hepatitis B, Hepatitis C, HIV).
+BVM (Bag-Valve-Mask): A hand-held device used to provide positive pressure ventilation to patients who are not breathing or not breathing adequately.
+Code Adam: A facility-wide lockdown protocol initiated for a missing child.
+CPO (Certified Pool Operator): The legally designated individual responsible for the mechanical and chemical maintenance of the water facility.
+EAP (Emergency Action Plan): A formal, written plan detailing the sequential steps staff must take during an aquatic or land-based emergency.
+FAC (Free Available Chlorine): The portion of total chlorine remaining in chlorinated water that has not reacted with contaminants and is available to kill bacteria and other organisms.
+ORP (Oxidation-Reduction Potential): An electronic measurement (in millivolts) of the water's ability to oxidize contaminants.
+Shallow Water Blackout: A sudden loss of consciousness caused by oxygen starvation, often triggered by prolonged breath-holding or hyperventilation before submersion.
+Zone of Coverage: The specific area of the water and pool deck that an individual lifeguard is strictly responsible for scanning and managing.
+
+2. Staff Hierarchy, Qualifications, and Dependencies
+2.1 Certification Dependencies
+Lifeguards: Must hold a current, internationally recognized Lifeguard Certification (e.g., American Red Cross, Ellis & Associates), including CPR/AED for the Professional Rescuer, and First Aid.
+Head Lifeguards: Must hold all basic lifeguard certifications plus a Lifeguard Management or Lifeguard Instructor (LGI) credential.
+Facility Manager: Must hold an active CPO or AFO (Aquatic Facility Operator) license issued by a recognized state or national body.
+
+2.2 Duty-to-Act Protocol
+While on duty and in uniform, all staff members have a legal "Duty to Act" in the event of an emergency.
+Failure to respond to a recognizable emergency or abandoning a post constitutes gross negligence and will result in immediate termination and potential criminal liability.
+
+2.3 Fitness for Duty Dependency
+Staff must report to work physically and mentally prepared.
+Lifeguards are prohibited from consuming alcohol within 12 hours of a shift.
+The use of any medication (prescription or over-the-counter) that induces drowsiness disqualifies a lifeguard from taking a surveillance stand.
+
+3. General Facility Philosophy, Admission & Legal Compliance
+3.1 "Safety First, Zero Exceptions" Policy
+Entry into the aquatic facility implies full, legally binding consent to abide by these rules. The Facility Manager and Head Lifeguard reserve the absolute right to unilaterally remove any patron who compromises the safety of themselves or others, without refund or prior warning.
+
+3.2 Assumption of Risk, Liability, and Waivers
+All patrons acknowledge that aquatic activities inherently carry life-threatening risks, including but not limited to slipping, submersion, spinal injury, and drowning.
+High-Risk Dependency: Patrons participating in specialized high-risk activities (e.g., scuba training, freediving, competitive platform diving) must sign a supplementary waiver of liability and present current, valid certification cards prior to entry.
+Medical Clearance Dependency: Individuals with a history of seizures, severe cardiac conditions, or syncope MUST provide written medical clearance and must be accompanied by a dedicated, in-water "buddy" at all times.
+
+3.3 Facility Capacity and Bather Load Dependencies
+Fire Code vs. Water Volume: Maximum facility capacity is governed by two hard limits: the local fire marshal's deck capacity limit, and the state health department's bather load limit.
+Standard Bather Ratio: 1 bather per 15 sq ft of shallow water, and 1 per 25 sq ft of deep water.
+Automated Lockout: Once the automated turnstile system detects that 95% of the bather load is reached, the admission desk is mechanically locked, enforcing a strict "One In, One Out" policy.
+
+4. Visitor Guidelines and Micro-Dependency Protocols
+4.1 The Multi-Tiered Wristband Proficiency System
+To prevent accidents, we strictly enforce a swim proficiency system utilizing waterproof RFID wristbands:
+The Swim Test Dependency: All guests under the age of 18, and any adult requested by a lifeguard, must take a standardized swim test.
+Testing Protocol: The test consists of leaping into deep water, recovering to the surface, treading water for 1 minute with the chin above the surface, and swimming 25 yards unassisted using a forward stroke with rhythmic breathing.
+Green Band (Passed): Visitors may freely use all pools, including the deep end, diving boards, and lap lanes.
+Yellow Band (Intermediate): Visitors may access water up to chest depth but are restricted from diving boards and the extreme deep end.
+Red Band (Failed/Non-Swimmer/Untested): Visitors are strictly confined to the shallow water zone (water depth below armpit level).
+Blue Band (Elite/Competitive): Issued only to registered club athletes during sanctioned practices.
+
+4.2 Strict Chaperone and Proximity Ratios
+Arm's Reach Rule: Any child aged 7 and under, OR any Red Band wearer under the age of 12, must be accompanied in the water by a fully capable adult.
+Reach Definition: The adult must be within physical touching distance at all times.
+Ratio Dependency: One adult may supervise a maximum of THREE Red Band swimmers.
+High-Risk Ratio: For children under 3 years old, the ratio is strictly 1 adult to 1 infant.
+Visual Supervision Fallacy: Sitting on the pool deck watching children is NOT considered supervision for Red Band wearers. The responsible adult must be submerged in the water alongside the minor.
+
+4.3 Strictly Prohibited Behaviors
+Engaging in any of the following will result in immediate intervention:
+No Diving in Shallow Water: Diving is only permitted in clearly marked zones deeper than 9 feet.
+No Prolonged Breath-Holding: Underwater distance swimming and breath-holding contests are strictly forbidden due to the risk of Shallow Water Blackout.
+Hyperventilation Ban: Taking multiple rapid, deep breaths before submerging is prohibited.
+No Horseplay: Dunking, throwing other patrons, riding on shoulders (chicken fights), and aggressive splashing are not allowed.
+Deck Hazards: Running, skipping, or speed-walking is forbidden. The pool deck is wet and slippery; cautious walking is mandatory.
+Contraband: Glass containers, chewing gum, sharp objects, and outside food items are entirely banned from the pool deck.
+
+4.4 Health, Hygiene, and Approved Equipment
+Mandatory Cleansing: A full-body cleansing shower with soap is mandatory before entering the water.
+Open Wounds: Patrons with unhealed abrasions, open sores, or surgical incisions are prohibited from entering the water. Band-Aids must be removed prior to entry.
+Pathogen Protocol: Anyone who has experienced a gastrointestinal illness within the last 14 days is federally prohibited from entering the water.
+Swim Diapers: Infants and toddlers must wear properly fitted, waterproof swim diapers covered by tight-fitting rubberized pants.
+Flotation Devices: Only US Coast Guard-approved life jackets (Types I, II, or III) are permitted. Inflatable armbands, rafts, and pool noodles are toys and cannot be used as life-saving devices.
+
+5. Complex Aquatic Feature Operational Protocols
+5.1 Wave Pool Operational Dependencies
+Cycle Rest Requirement: The wave generation machinery is programmed to operate on a strict "15 minutes ON, 10 minutes OFF" cycle.
+Bottom Scan Dependency: The OFF cycle is mandatory to allow weak swimmers to recover and to permit lifeguards to conduct a comprehensive bottom-scan of the entire basin.
+Dispatch Depth: Weak swimmers and children under 48 inches must wear USCG-approved life jackets to progress past the 3-foot depth marker.
+Wind Shear Limitation: If anemometer readings exceed 20 mph, wave amplitude must be mechanically reduced by 50%.
+
+5.2 Lazy River Dispatch and Flow Protocols
+Tube Ratio: The number of patrons in the lazy river cannot exceed the number of available facility-issued inner tubes.
+Empty Entry Prohibition: Entering the river without a tube is prohibited.
+Entry/Exit Flow: Patrons may only enter and exit the river at designated stairwells.
+Bridge Jumping: Jumping into the river from pedestrian bridges or perimeter walls is an EAP-level offense resulting in immediate ejection.
+Current Speed: Water velocity is mechanically governed not to exceed 2.5 feet per second.
+
+5.3 Diving Board & Platform Operations
+One at a time: Only one person is permitted on the diving apparatus (including the ladder) at a time.
+One Bounce Rule: Divers are permitted only one approach and one bounce on the fulcrum.
+Forward Entry Only: Inward dives, reverse dives, and backflips are prohibited during open swim.
+Clearance Dependency: The diver must wait until the previous diver has surfaced and reached the pool wall before initiating their dive.
+Goggle Ban: Swimming goggles and face masks may not be worn while jumping from the diving board, due to the risk of ocular trauma upon impact.
+
+5.4 Water Slide Dispatch Operations
+Height Requirement: Riders must be at least 48 inches tall to ride the slide. No exceptions.
+Weight Capacity: Maximum rider weight is 300 lbs per manufacturer specifications.
+Dispatch Timing: A rider may only be dispatched when the splashdown zone is visually confirmed empty by the bottom guard, and the top dispatcher receives the "All Clear" signal.
+Riding Position: Riders must go down feet-first, facing forward, with arms crossed over their chest and ankles crossed.
+Catching Ban: Adults are not permitted to stand in the splashdown zone to "catch" children coming off the slide.
+
+5.5 Spa / Hot Tub Dependencies
+Age Limit: No children under the age of 14 are permitted in the spa.
+Time Limit: Maximum exposure time is 15 minutes to prevent hyperthermia, dehydration, and syncope.
+Temperature Lock: The spa thermostat is hard-locked to a maximum of 104°F (40°C). If the temperature exceeds 104.5°F, the spa must be immediately evacuated and closed.
+Submersion Ban: Complete submersion (putting the head underwater) is prohibited in the spa to prevent hair entrapment in the suction drains.
+
+6. Lifeguard Readiness, Audits, and Cognitive Standards
+6.1 The 10/20 Scanning Standard & Glare Mitigation
+Visual Audit (10 Seconds): A lifeguard must visually scan their entire assigned zone (checking every patron's face, the surface, the middle depth, and the bottom of the pool) within 10 seconds.
+Physical Audit (20 Seconds): They must be physically able to reach the furthest extremity of their zone to begin a rescue within 20 seconds.
+Glare Dependency: If sunlight or ambient lighting creates a blind spot on the water's surface, the lifeguard must immediately stand, change their viewing angle, or request a zone boundary adjustment. A zone that cannot be 100% visualized cannot remain open.
+
+6.2 Focus, Rotation, and Station Relief Rules
+Unbroken Attention: A lifeguard's eyes must never leave the water.
+Distraction Prohibition: They are strictly prohibited from conversing with patrons (beyond issuing short rule corrections), using smart devices, reading, or eating on the stand.
+Station Relief Dependency: A lifeguard cannot leave their station, even for a restroom break, until a relieving guard assumes physical control of the rescue tube and confirms verbal observation of the zone ("I have the zone").
+Rotation Limit: To prevent visual fatigue, neurological "change blindness," and posture degradation, lifeguards must physically rotate stations every 20-30 minutes.
+
+6.3 In-Service Training and Vigilance Audits
+Minimum Training Dependency: Every active lifeguard is required to complete a minimum of 4 hours of documented in-service physical and classroom training per month.
+Red Tag Audits: The facility conducts unannounced silhouette drop audits daily. Lifeguards have exactly 10 seconds to identify the submerged silhouette and sound the whistle.
+Audit Failure Protocol: Failure to spot the target results in immediate removal from the stand, suspension of guarding shifts, and mandatory remedial training.
+
+6.4 Zone Capacity and Whistle Codes
+Overcrowding Dependency: One lifeguard can safely supervise a maximum of 25 visitors in a standard zone. If the zone exceeds 25 patrons, the Head Guard must open a new stand.
+Auditory Signals Matrix:
+One Short Blast: Used to get a guest's attention to correct a rule violation.
+Two Short Blasts: Used to get the attention of another lifeguard, a manager, or the front desk.
+One Long, Continuous Blast: Emergency Action Plan (EAP) activation. The lifeguard has recognized an emergency and is entering the water.
+Three Short Blasts: Emergency pool clearance. Everyone must exit the water immediately.
+One Long Blast followed by Two Short Blasts: Major medical emergency on the deck (land-based EAP).
+
+7. Emergency Action Plan (EAP) and Extraction Procedures
+7.1 Recognizing the Stages of Drowning
+Aquatic Distress (Warning): Swimmer can keep their mouth above water, might be making no forward progress, or clinging to a lane line. They may be able to wave or call for help.
+Active Drowning (Critical): Swimmer is vertical in the water. Their biological instincts force their arms to press down laterally to keep their mouth above water (Instinctive Drowning Response). They cannot yell, kick, or grab a rescue tube. Submersion occurs in 20 to 60 seconds.
+Passive Drowning (Fatal): The swimmer has lost consciousness, stopped breathing, and submerged to the bottom.
+
+7.2 Standard EAP Execution Dependencies
+Activation: Rescuer blows ONE LONG whistle blast, points forcefully at the victim to alert other staff, and enters the water safely.
+Visitor Yielding: ALL other visitors must immediately clear a path, move to the walls, and exit the pool if instructed. Bystander interference is strictly prohibited.
+Zone Coverage Adjustment: When a primary guard enters the water, backup guards must immediately adjust their scanning zones to cover the rescuer's newly created blind spots. No water is ever left unguarded.
+Intervention: The lifeguard secures the victim using the rescue tube to establish positive buoyancy.
+Extrication: The victim is towed to the nearest designated extrication point. If the victim is unconscious, a secondary rescuer must assist with a two-person lift or backboard extraction.
+
+7.3 Advanced Medical Protocols and Secondary Drowning
+Spinal Injury Suspicion: If a patron is injured via a head-first impact or exhibits signs of paralysis, the rescuer must utilize a Vise Grip or Head-Splint stabilization technique in the water. A secondary rescuer must deploy the rigid backboard.
+AED and O2 Deployment: For any unconscious victim, the secondary or tertiary rescuer must retrieve the Automated External Defibrillator (AED), trauma bag, and Bag-Valve-Mask (BVM) with supplemental oxygen within 60 seconds of EAP activation.
+EMS Handover Dependency: Any victim who required physical extraction from the water must be evaluated by Emergency Medical Services (EMS).
+Secondary Drowning Clause: Even if a rescued patron claims to be "fine," inhaling a small amount of water can cause delayed pulmonary edema up to 24 hours later. The facility mandates EMS evaluation for all submersion incidents.
+
+7.4 Code Adam (Missing Child Facility Lockdown)
+Initiation: If a child under 12 is reported missing, a "Code Adam" is broadcasted over the PA system, accompanied by a description of the child.
+Facility Lockdown: Front desk staff immediately secure all physical exit doors. No patron is permitted to leave the building until the child is found.
+Water Search Dependency: Lifeguards immediately blow three short blasts to clear all pools. Staff form a human chain and conduct a physical, walking bottom-sweep of all water bodies.
+Secondary Search: Once the water is confirmed 100% clear, staff proceed to search locker rooms, family changing areas, pump rooms, and facility perimeters. If the child is not found within 10 minutes, local law enforcement must be contacted.
+
+8. Facility Infrastructure and Chemical Threshold Dependencies
+8.1 Pump Room Restricted Access & Hazmat Protocols
+Access Control: The pump room is a hazardous environment containing lethal chemicals and high-voltage equipment. Access is strictly restricted to CPOs and authorized maintenance personnel. Doors must remain locked at all times.
+Chemical Separation Dependency: Chemical storage protocols dictate that oxidizers (e.g., sodium hypochlorite) must be stored completely separate from acids (e.g., muriatic acid) by a minimum physical distance of 10 feet, utilizing separate secondary containment berms. Mixing these creates lethal chlorine gas.
+PPE Requirement: Staff entering the pump room for chemical manipulation must wear heavy-duty rubber gloves, full-seal splash goggles, and chemical aprons.
+
+8.2 Chemical Thresholds and Mandatory Closures
+The facility operations are directly dependent on continuous automated and manual chemical monitoring. Manual water tests must be performed every 2 hours. The pool MUST be immediately cleared and closed if the following thresholds are breached:
+Free Available Chlorine (FAC): Drops below 1.5 ppm (creating a severe infection risk) or exceeds 5.0 ppm (creating a chemical burn risk).
+Combined Chlorine (Chloramines): Exceeds 0.4 ppm, indicating poor water quality and the need for immediate breakpoint super-chlorination (shocking).
+Oxidation-Reduction Potential (ORP): Drops below 700 mV. ORP is the primary indicator of the water's real-time killing power against pathogens.
+pH Levels: Drops below 7.2 (corrosive to pool infrastructure, severe eye irritation) or rises above 7.8 (chlorine becomes instantly ineffective). Target pH is strictly 7.4 to 7.6.
+Total Alkalinity: Must be maintained between 80-120 ppm to act as a buffer for pH stability.
+Cyanuric Acid (CYA): For outdoor pools, CYA must not exceed 50 ppm. Levels above this cause "chlorine lock," rendering the sanitizer useless.
+Water Clarity Dependency: The main drain covers at the deepest point of the pool must be clearly and sharply visible from the highest lifeguard stand. If clarity degrades, the pool must close.
+
+8.3 Indoor Air Quality (HVAC) Dependencies
+Chloramine Threshold: If the distinct "pool smell" (combined chloramines off-gassing) exceeds acceptable limits, causing eye irritation and respiratory distress (e.g., coughing, asthma exacerbation) in staff or patrons, the facility's HVAC system must be switched to 100% fresh air exhaust.
+Evacuation Protocol: If symptoms persist after HVAC adjustments, the indoor facility must be evacuated until air quality returns to safe parameters.
+
+9. Environmental Closures, Biohazards, and Evacuations
+9.1 Severe Weather Protocols (Outdoor/Indoor)
+Lightning/Thunder Dependency: If thunder is heard or lightning is seen, the entire pool deck (and indoor pools connected to external grounding or plumbing) must be cleared immediately.
+30-Minute Rule: The facility will remain closed for a strict minimum of 30 minutes after the LAST sound of thunder or flash of lightning. Each new acoustic or visual detection resets the 30-minute clock to zero. Patrons must move inside to grounded structures. Showers cannot be used during a lightning storm.
+Wind Shear: If sustained winds exceed 35 mph, all elevated structures (slides, diving towers) must be closed. If wind exceeds 50 mph, the entire outdoor facility must be evacuated due to the risk of flying debris (chairs, umbrellas).
+Sun Glare/Visibility: At dawn or dusk, if low sun angles create an unbroken sheet of glare that prevents lifeguards from seeing the bottom, affected zones must be closed until the sun shifts.
+
+9.2 Biohazard Protocols (BBP)
+Bloodborne Pathogen (BBP) Spills: Blood or vomit on the deck must be isolated immediately. Staff must clean it using a 1:10 bleach solution and specialized BBP containment kits, disposing of waste in red biohazard bags.
+Solid Fecal Incident: The pool will be cleared for a minimum of 30 minutes. The solid mass must be removed with a net or scoop (never a vacuum, which breaks it apart). The area must be chemically shocked to raise FAC to a minimum of 2.0 ppm, and pH maintained at 7.5 or less for 30 minutes before reopening.
+Diarrheal Incident (High Risk): Diarrhea presents a massive risk of Cryptosporidium (Crypto) outbreak. The pool will be immediately evacuated and closed for up to 24 hours. The FAC must be raised to 20.0 ppm for 12.75 hours (or equivalent CT value) to ensure total destruction of the parasites. The filter must be backwashed directly to waste.
+
+9.3 Structural, Fire, and Power Dependencies
+Power Outage: In the event of a total power failure, all patrons must be evacuated from indoor and outdoor pools immediately. Without power, filtration, chemical dosing, wave generation, and ambient lighting systems are instantly compromised, making the environment unmanageable.
+Fire Alarm Evacuation: If the fire EAP is activated, lifeguards must sound three short blasts to clear the pool. Staff must quickly distribute emergency Mylar thermal blankets to wet patrons and guide them to the designated outdoor muster points.
+Locker Room Bypass: During a fire evacuation, patrons are strictly prohibited from entering locker rooms to retrieve personal belongings. Evacuation is immediate and direct to the exterior.
+
+10. Patron Disciplinary Matrix
+To maintain order and ensure compliance with safety protocols, management enforces a strict three-strike disciplinary matrix:
+Strike 1 (Verbal Warning): Lifeguard halts the unsafe behavior, explains the rule clearly to the patron (and guardian if applicable), and issues a verbal warning.
+Strike 2 (Time-Out): Patron is removed from the water for a mandatory 15-minute cool-down period. Management is notified and documents the infraction.
+Strike 3 (Ejection): Patron is instructed to gather their belongings and leave the facility immediately. A trespass notice may be issued for severe or combative infractions. Refunds are never issued for disciplinary ejections.
+Zero-Tolerance Offenses: Physical violence, verbal abuse of staff, intentional defecation in the pool, or entering restricted mechanical areas will bypass the strike system and result in immediate police intervention and a permanent lifetime ban from the facility.

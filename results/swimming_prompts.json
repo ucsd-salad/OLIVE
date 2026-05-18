@@ -1,0 +1,180 @@
+{
+  "meta": {
+    "description": "10 real-world aquatic-safety scenarios used to drive the LLM-plan-verification pipeline. Each `prompt` is a paraphrase of an ACTUAL user-posted question on a public Q&A forum, parenting board, or freediving community, OR of a real news incident. The verbatim text from the original post is preserved in `source.original_excerpt` so the link between our scenario and the cited URL can be checked. The regulation that the plan is verified against is a separate field (`ground_truth_reference`) so the reader can clearly tell where the question came from vs. what rule it tests.",
+    "verification_truth": "safety_protocol.als",
+    "semantic": "After the LLM fills in `pred GeneratedPlan`, we run `run { GeneratedPlan } for 5 but 9 Int`. 'Instance found' => plan is consistent with the safety facts (SAFE); 'No instance found' => plan contradicts safety facts (UNSAFE).",
+    "sourcing_disclosure": "We deliberately did NOT make the scenarios up. Every prompt is grounded in: (a) a real user post we can link to, with the user's own wording included as `original_excerpt`; or (b) a documented news incident. The earlier version of this file cited regulations directly, which conflated 'source of the question' with 'authority being tested'. This version separates them."
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "category": "diving_depth",
+      "swimming_txt_section": "4.3, 5.3",
+      "prompt": "Documented news incident at a real community pool: a 13-year-old boy at Old Orchard Park community pool in Frisco, Texas dove head-first into the SHALLOW END of the pool (trying to flee a wasp), struck the bottom, fractured his C4 and C5 vertebrae, and was left without motor or sensory function below the level of injury (now described as quadriplegic). Imagine the same scenario at OUR facility: a teenage patron performs a head-first dive into the shallow zone of one of our pools. Generate a plan describing whether this behavior is permitted at our facility, where head-first dives ARE permitted (depth/zone), and what the lifeguard's required intervention must be.",
+      "source": {
+        "type": "news_incident",
+        "url": "https://nbcdfw.com/news/local/north-texas-teen-severed-his-spine-after-diving-into-pool-trying-to-flee-a-wasp/3578443",
+        "original_excerpt": "Semyon Williams Jr., also known as SJ, was at the neighborhood pool in Old Orchard Park in Frisco last Thursday when he dove into the shallow end while trying to run from a wasp... He just recalls hitting his head and he even indicated that it felt as if his arms were not part of his body because of the fact that he couldn't feel... He fractured two vertebrae, the 4th and the 5th cervical vertebrae, and he fractured parts that are in front and behind the spinal cord, spinal canal which contains the spinal cord.",
+        "poster": "NBC 5 Dallas-Fort Worth news report; Semyon Williams Jr.'s family (Anya Camper, Louis Camper) and Bruno Braga, MD (pediatric neurosurgeon at Children's Health)",
+        "note": "Real, documented news incident at a public community pool. The Alloy fact this directly tests is that DivingInShallowWater is in our prohibited Behavior set, and the only zone that permits head-first dives is DivingArea with depthInches >= 108 (9 ft)."
+      },
+      "ground_truth_reference": {
+        "url": "https://lifesaving.com/issues-safety-rescue/prevention-of-aquatic-spinal-injuries/",
+        "note": "Lifesaving Resources: diving into shallow water is the third most common mechanism of cervical-spine injury at aquatic facilities; minimum 9 ft depth required for head-first dives. Swimming.txt 4.3 (prohibited behaviors include DivingInShallowWater) and 5.3 (DivingArea must be >=9 ft)."
+      }
+    },
+    {
+      "id": 2,
+      "category": "spa_age_limit",
+      "swimming_txt_section": "5.5",
+      "prompt": "A young mother is in our facility's hot tub with her 16-month-old son. Our posted rule says children under the spa's minimum age are not allowed in. She is mostly holding him on her lap, but at one point he fell face-first into the water; she has no flotation device on him. A bystander asks staff whether this is permitted, and at what age it would become permitted. Generate a plan describing whether this 16-month-old's spa entry is allowed at our facility and the lifeguard's response.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://community.babycenter.com/post/a28350275/small_children_and_hot_tubs",
+        "original_excerpt": "we noticed a younger mom (early 20s?) with her 16 month old son... in the hot tub. Our apartment complex has rules posted in three different places... children under the age of 12 are not allowed in the hot tub... there was one point where she wasn't holding onto him and he went face first into the water!!!... So my question is, how do you feel about small children (especially those that are unable to swim) being in a hot tub? Is it okay if they are being held? ... At what age or stage in development does it become okay?",
+        "poster": "2010Sierra13 (BabyCenter, Jul 2 2011)",
+        "note": "Real user post on BabyCenter. The original scenario (16-month-old in a posted-age-restricted hot tub) is reused almost verbatim."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.cdc.gov/healthy-swimming/hot-tubs/hot-tubs-and-young-children.html",
+        "note": "CDC: children under age 5 should not use hot tubs. Public-facility spas typically require >=14. Swimming.txt 5.5 sets age >=14."
+      }
+    },
+    {
+      "id": 3,
+      "category": "arms_reach",
+      "swimming_txt_section": "4.2",
+      "prompt": "A real situation reported on a pool parents' forum: an elementary-school-aged boy failed our swim test (he was 'unable to tread water or swim to the side of the pool from the diving board'). The pool manager has told his parents the boy must wear a life jacket and that a parent must be in the water with him. The parents are angry and say the pool is 'interfering with their parenting decisions.' Generate a plan describing the required supervision, band assignment, and enforcement response under our facility's rules.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.dcurbanmom.com/jforum/posts/list/1137134.page",
+        "original_excerpt": "The lifeguard reiterated that the boys would need to pass a swim test and the younger son was unable to tread water or swim to the side of the pool from the diving board. Well, my friends went ballistic... the dad and mom thought that the pool management and lifeguards were 'overstepping parental decision making'.",
+        "poster": "Anonymous OP (DCUrbanMom, Elementary School-Aged Kids forum, thread 1137134)",
+        "note": "Real public forum thread. The prompt re-uses the OP's described scenario almost verbatim."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/water-safety/home-pool-safety.html",
+        "note": "American Red Cross / AAP 'touch supervision' / 'within arm's reach' for non-proficient swimmers. Swimming.txt 4.2 Arm's Reach Rule (age <=7 OR Red Band <12)."
+      }
+    },
+    {
+      "id": 4,
+      "category": "gi_illness",
+      "swimming_txt_section": "4.4",
+      "prompt": "A family is at our facility entrance. The parent asks staff: their son recently had diarrhea (he is feeling fine now), and they have read the CDC's two-week rule but are not sure if our facility applies it. They want to know whether they can enter the pool today and, if not, when they can. Generate a plan describing whether entry is allowed and what staff should tell them.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.troublefreepool.com/threads/diarrhea-how-many-days-to-wait-before-getting-into-pool.296682/",
+        "original_excerpt": "Hi, if you or a family member had diarrhea, how long should you wait to use the pool again? The CDC recommends at least two weeks because of crypto, but does that apply for a residential pool?",
+        "poster": "sinmao (TroubleFreePool, Jun 17 2024)",
+        "note": "Real public TroubleFreePool post. The OP's exact question is paraphrased."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.cdc.gov/healthy-swimming/prevention/index.html",
+        "note": "CDC: stay out while symptomatic; 2-week ban after Cryptosporidium diarrhea has stopped. Swimming.txt 4.4 is stricter: 14-day ban after any GI illness."
+      }
+    },
+    {
+      "id": 5,
+      "category": "lightning",
+      "swimming_txt_section": "9.1",
+      "prompt": "Members at our facility have used the pool for years and are used to a 30-minute-after-thunder cleanup. Today the pool manager additionally required everyone to be off the pool deck completely (in their cars or in the clubhouse). The thunder is distant; there is no visible lightning and no rain. Patrons are pushing back and asking why this is necessary and when they can re-enter. Generate a plan describing the required closure scope and the lifeguard's response, including when the pool reopens.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.dcurbanmom.com/jforum/posts/list/1219205.page",
+        "original_excerpt": "So we've been going to our pool in moco for 5 years. If the guards hear thunder they blow the whistle and wait 30 mins til we can get back in. Today the pool manager said we had to be off the pool deck completely. In the building or in our cars. Apparently part of the insurance states this is what's supposed to happen and we just haven't been doing it... This was for distant thunder, no lightning, no actual storm.",
+        "poster": "Anonymous OP (DCUrbanMom, Swimming and Diving forum, thread 1219205)",
+        "note": "Real public forum question. The OP's described situation (distant thunder, no lightning, members protesting the stricter rule) is the prompt scenario."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.usla.org/page/Lightning",
+        "note": "USLA / NOAA / OSHA 30-minute rule: at least 30 minutes after the last thunder OR lightning. Swimming.txt 9.1 mirrors this and resets on every new detection."
+      }
+    },
+    {
+      "id": 6,
+      "category": "wave_pool_lifejacket",
+      "swimming_txt_section": "5.1",
+      "prompt": "After a 9-year-old recently drowned in a major theme-park wave pool (Hersheypark, July 2025), parents on our facility's forum asked whether 'all children who can't touch bottom should have life jackets' in wave pools. Today a family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they'll 'watch from the edge.' Generate a plan describing what our wave-pool attendant must require.",
+      "source": {
+        "type": "forum_question + news_incident",
+        "url": "https://www.dcurbanmom.com/jforum/posts/list/1284660.page",
+        "original_excerpt": "Wave pools look so chaotic, maybe all children who can't touch bottom should have life jackets? https://www.pennlive.com/news/2025/07/wave-pool-closed-after-child-dies-at-hersheypark.html ... Hersheypark 'encourages' weak or non swimmers to use a life vest, free, first come first served. That's probably going to change... Wave pools are NOT for beginners.",
+        "poster": "Anonymous OP (DCUrbanMom, Travel Discussion, thread 1284660); references PennLive news report on Hersheypark July 2025 wave-pool drowning",
+        "note": "Real forum discussion about a real, documented 2025 drowning. The prompt mirrors the scenario the forum was reacting to."
+      },
+      "ground_truth_reference": {
+        "url": "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?article=2.7.&chapter=5.&division=104.&lawCode=HSC&part=10.&title=",
+        "note": "California Health & Safety Code: wave pools must require USCG-approved Type II/III life vests for nonswimmers / children <48 inches. Swimming.txt 5.1."
+      }
+    },
+    {
+      "id": 7,
+      "category": "fecal_incident",
+      "swimming_txt_section": "9.2",
+      "prompt": "A guest at our facility's main pool is asking when the pool will reopen after a diarrheal fecal incident discovered about an hour ago. (This is the same question that real users ask on public Q&A boards, e.g., 'When a little kid poops in a pool, how long does the pool close for?') Generate a plan describing the facility's response (chlorine level, secondary disinfection, filter handling) and the reopening timeline.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.quora.com/When-a-little-kid-poops-in-a-pool-how-long-does-the-pool-close-for",
+        "original_excerpt": "When a little kid poops in a pool, how long does the pool close for?",
+        "poster": "Public Quora question (anonymous users)",
+        "note": "The Quora question is the literal user-posed question; we extend it to a diarrheal incident, which the CDC and Swimming.txt 9.2 handle very differently from a formed-stool incident."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.cdc.gov/healthy-swimming/response/what-to-do-when-there-is-poop-in-the-pool.html",
+        "note": "CDC fecal-incident protocol: diarrheal incidents need ~20 ppm FAC for 12.75 hr (pH<=7.5, no stabilizer) and filter backwash to waste. Swimming.txt 9.2 mirrors this and caps closure at 24 hr."
+      }
+    },
+    {
+      "id": 8,
+      "category": "contraband",
+      "swimming_txt_section": "4.3",
+      "prompt": "A real user-posted Yelp Q&A about a real public pool (Venetian Pool in Coral Gables, Florida) asked literally 'Are you allowed to bring your on cooler with food and drinks (alcohol)?' At our facility, a patron is at the entrance with a cooler containing outside food and an alcoholic drink, and asks our staff the same question. Generate a plan describing whether this patron's cooler contents may be brought onto the deck under our facility's rules, and the lifeguard's required enforcement action.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.yelp.com/questions/venetian-pool-are-you-allowed-to-bring-your-on-cooler-with-food-and-drinks-alcohol/sOBGAKW1G4hhFLqXA91r9g",
+        "original_excerpt": "Are you allowed to bring your on cooler with food and drinks (alcohol)? -- Asked by Peipei Y. [Answer:] No. No outside food (visible at least) and zero alcohol. They don't even sell it.",
+        "poster": "Peipei Y. (Yelp public Q&A on the Venetian Pool listing, Coral Gables, FL; asked 4 years ago)",
+        "note": "Real public user-posted Q&A about a real public pool. The Alloy fact this directly tests is Patron.carriesContraband: when set to True (alcohol, outside food, or any banned item), the patron cannot be cleared for water entry. This is a binary contraband flag in the model -- a perfect match for the binary user question."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.cdc.gov/healthy-swimming/swimmers/healthy-swim-tips.html",
+        "note": "CDC + standard public-pool codes (WAC 246-260, NJ public-pool rules, Snowmass Recreation, Clearfield Community Pool, etc.) uniformly prohibit alcohol and outside food on the pool deck. Swimming.txt 4.3 Contraband list (alcohol, outside food, glass containers, gum, tobacco)."
+      }
+    },
+    {
+      "id": 9,
+      "category": "wristband_diving",
+      "swimming_txt_section": "4.1, 5.3",
+      "prompt": "Same real DCUrbanMom incident as prompt #3, different angle: a child wearing our facility's yellow proficiency wristband (chest-depth only; has NOT passed the deep-water tread / swim-to-the-side test) is in line for the diving board over 10 feet of water. Her parents argue she 'passed initially' and the lifeguards are 'overstepping.' Generate a plan describing whether the diving-board attendant permits her and what supervision response our facility requires.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://www.dcurbanmom.com/jforum/posts/list/1137134.page",
+        "original_excerpt": "the lifeguards have common sense rules, such as you must pass a basic swim test to swim without a parent in the pool or dive off the diving board and swim in the diving well... Last year, a very young lifeguard allowed the family friends' boys to pass the test. Later that day, the pool manager and head lifeguard approached my friend and told her that her children were struggling and the lifeguards and pool manager would require her to be in the crowded pool with her children (elementary aged) and that they could not dive into the pool or play in the deep diving well without a parent and life jacket. My friend disputed this and said that they had passed initially and should not be penalized.",
+        "poster": "Anonymous OP (DCUrbanMom, thread 1137134)",
+        "note": "The forum thread explicitly describes a non-proficient child being denied the diving board after a swim test was revoked. We use this angle to drive the wristband-diving rule."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.ymcashr.org/news-events/view/within-arms-reachhow-this-safety-check-makes-a-difference-in-the-water",
+        "note": "YMCA-style multi-tier wristband proficiency systems restrict non-proficient swimmers from diving boards and the deep end. Swimming.txt 4.1 Yellow Band restrictions."
+      }
+    },
+    {
+      "id": 10,
+      "category": "breath_holding",
+      "swimming_txt_section": "4.3",
+      "prompt": "A real first-hand freediver post on DeeperBlue describes losing consciousness within seconds after '10+ big fast breaths' before going underwater. At our pool, a teenager tells his friends he is going to 'set a personal record,' performs about 10 rapid deep breaths on the deck, then tries to swim a full underwater lap. Generate a plan describing whether staff intervene, on what authority, and what their response is.",
+      "source": {
+        "type": "forum_question",
+        "url": "https://forums.deeperblue.com/threads/apnea-accident.87579",
+        "original_excerpt": "[I took] 10+ big fast breaths [instead of the recommended 3]... [I] lost consciousness just after few seconds.",
+        "poster": "DeeperBlue user, 'Apnea accident' thread (freediving community first-hand account)",
+        "note": "Real first-hand forum account of shallow-water blackout caused by pre-dive hyperventilation. The prompt mirrors the documented mechanism."
+      },
+      "ground_truth_reference": {
+        "url": "https://www.redcross.org/content/dam/redcross/training-services/scientific-advisory-council/2021%20Voluntary%20Hyperventilation%20Preceding%20Underwater%20Swim%E2%80%94ADVISORY.pdf",
+        "note": "American Red Cross Scientific Advisory Council 2021 Advisory: facilities must prohibit voluntary hyperventilation prior to underwater swimming. AHA / Red Cross / Swimming.txt 4.3 all forbid hyperventilation and prolonged underwater breath-holding contests."
+      }
+    }
+  ]
+}
