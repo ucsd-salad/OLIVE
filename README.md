@@ -663,7 +663,7 @@ python3 pipeline.py 2>&1 | tee results/my-experiment-$(date +%Y%m%d).log
 | **John** | Choking | Poster, and main pipeline |
 | **Junhao** | Drowning | Testing, Translator, code slicer |
 
-**Advisor**: Prof. Michael Coblenz, Ilana shapiro
+**Advisor**: Prof. Michael Coblenz, Ilana Shapiro
 
 **Institution**: Salad Lab, UCSD
 
