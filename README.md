@@ -658,10 +658,10 @@ python3 pipeline.py 2>&1 | tee results/my-experiment-$(date +%Y%m%d).log
 
 | Member | Domain | Role |
 |---|---|---|
-| **Aila** | Fractures/Sprains, Spine Injury | Alloy main pipeline |
-| **Sheila** | CPR | English Translator |
-| **John** | Choking | Poster, and main pipeline |
-| **Junhao** | Drowning | Testing, Translator, code slicer |
+| **Aila** | Fractures/Sprains, Spine Injury |
+| **Sheila** | CPR |
+| **John** | Choking  |
+| **Junhao** | Drowning |
 
 **Advisor**: Prof. Michael Coblenz, Ilana Shapiro
 
