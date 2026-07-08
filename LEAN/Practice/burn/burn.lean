@@ -34,9 +34,7 @@ structure Burn where
   infected : Bool
   necrotic : Bool -- premature death of the cells
 
-end BurnProtocol
 
-namespace BurnProtocol
 
 /-- Patient information. -/
 structure Patient where
@@ -47,9 +45,6 @@ structure Patient where
   competentDressingCare : Bool -- whether the patient can manage wound at home (if not, follow up or admission
   significantComorbidities : Bool -- whether the patient has other health risks (diabetes, etc)
 
-end BurnProtocol
-
-namespace BurnProtocol
 
 /-- burn classificaiton predicates (adding logic)-/
 def isSuperficial (b : Burn) : Prop :=
@@ -75,9 +70,6 @@ def needsDressingB (b : Burn) : Bool :=
   b.depth = BurnDepth.deepPartial ∨
   b.depth = BurnDepth.fullThickness
 
-end BurnProtocol
-
-namespace BurnProtocol
 /-- all the possible treatment actions (to standardize the vocab)-/
 inductive Treatment
 | coolWater
@@ -92,10 +84,8 @@ inductive Treatment
 | referBurnSurgeon
 | transferBurnCenter
 | ice
+deriving DecidableEq, Repr
 
-end BurnProtocol
-
-namespace BurnProtocol
 
 /-- def is a computable, executable object: since treamtnet is something we compute-/
 -- input is Patient p and output is list of treamtnets
@@ -121,9 +111,7 @@ def initialTreatment (p : Patient) : List Treatment := -- := separates declerati
     Treatment.dressing :: base
   else base
 
-end BurnProtocol
 
-namespace BurnProtocol
 
 def infectionTreatment (p : Patient) : List Treatment :=
 if p.burn.infected then
@@ -134,9 +122,6 @@ if p.burn.infected then
 else
 []
 
-end BurnProtocol
-
-namespace BurnProtocol
 
 /-- return type is a Prop since referral is a logical criterion, not an action
  question: should referral be required? -/
@@ -149,7 +134,6 @@ def referralRequired (p : Patient) : Prop :=
  ∨ p.burn.infected
  -- v operates on propositions
 
- namespace BurnProtocol
 
 /-- inducttive: new data type, 3 possible outcomes-/
 inductive FollowUp
@@ -168,7 +152,9 @@ else if
 else
     FollowUp.weekly
 
-end BurnProtocol
+def treatmentPlan (p : Patient) : List Treatment :=
+  initialTreatment p ++ infectionTreatment p
+
 
 /-- no longer computing anything, but theorem is asserting that something must be true -/
 theorem nonSuperficialGetsAntibiotic
@@ -231,7 +217,7 @@ def candidatePatient : Patient :=
   competentDressingCare := true,
   significantComorbidities := false }
 
-/-- a candidate plan that is SAFE -/
+/-- a candidate plan that is unsafe -/
 def candidatePlan : List Treatment :=
 [
   Treatment.coolWater,
@@ -239,3 +225,5 @@ def candidatePlan : List Treatment :=
   Treatment.painManagement,
   Treatment.topicalAntibiotic
 ]
+
+#eval treatmentPlan candidatePatient

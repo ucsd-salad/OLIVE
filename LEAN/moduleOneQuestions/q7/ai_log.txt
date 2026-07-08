@@ -1,0 +1,325 @@
+Looking at the question: "Below what age is a child always a priority?"
+
+From the `Priority` function, I can see:
+```
+optionLt p.ageInMonth 2,   -- Tiny Baby ( < 2 months)
+```
+
+So below 2 months, a child is always a priority (assuming they're not already an Emergency).
+
+I need to show that for any patient with `ageInMonth = some n` where `n < 2` (i.e., `n = 0` or `n = 1`), and where the Emergency check returns `some false`, the triage result is `Priority`.
+
+But more directly, I need to show that `Priority p = some true` when `ageInMonth` is less than 2 months. Let me construct this carefully.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- A child below 2 months is always a priority.
+-- We demonstrate this with a patient whose age is below 2 months,
+-- and all other fields are default (none), and show Priority returns some true.
+
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 1
+  oedema := none
+}
+
+-- The answer is: below 2 months of age, a child is always a priority.
+-- We prove that for any patient with ageInMonth = some n where n < 2,
+-- Priority returns some true.
+
+theorem ValidPlan :
+  ∀ (n : Nat), n < 2 →
+    ∀ (p : Patient), p.ageInMonth = some n →
+      Priority p = some true := by
+  intro n hn p hp
+  unfold Priority
+  unfold optionOrList
+  simp [optionLt, hp]
+  -- We need to show that optionLt (some n) 2 == some true
+  -- i.e., some (n < 2) == some true
+  -- Since n < 2, this is some true == some true
+  simp [optionLt]
+  -- Now we need to show n < 2 is true
+  omega
+```
+
+Wait, let me think more carefully about the `optionOrList` evaluation and how `simp` will handle it. The `optionOrList` checks if any element `== some true`. Let me be more careful:
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- The answer is: below 2 months of age, a child is always a priority.
+
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 0
+  oedema := none
+}
+
+theorem ValidPlan :
+  ∀ (n : Nat), n < 2 →
+    ∀ (p : Patient), p.ageInMonth = some n →
+      Priority p = some true := by
+  intro n hn p hp
+  unfold Priority
+  unfold optionOrList
+  simp only [List.any_cons, List.any_nil, Bool.or_false]
+  simp only [optionLt, hp]
+  have h : n < 2 := hn
+  simp [h]
+```
+
+Hmm, this might not work perfectly. Let me try a more direct approach with `decide` or `native_decide` on concrete values, or use `omega`. Let me try yet another approach:
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- Answer: Below 2 months of age, a child is always a priority.
+
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 0
+  oedema := none
+}
+
+-- We prove that for a patient with age < 2 months and no emergency conditions,
+-- the triage assessment is at least Priority.
+-- Specifically, Priority returns some true when ageInMonth < 2.
+
+theorem ValidPlan :
+  ∀ (n : Nat), n < 2 →
+    Priority { ageInMonth := some n, oedema := none : Patient } = some true := by
+  intro n hn
+  simp only [Priority, optionOrList, optionLt, optionEq, optionContains,
+             SevereRespiratoryDistress, optionAndList]
+  simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.or_true,
+             BEq, Option.instBEq, decide_eq_true_eq]
+  simp only [show n < 2 from hn]
+  simp
+```
+
+============================================================
+
+The error message "unexpected identifier; expected command" at line 1:0 suggests that this line of code is not within a proper Lean declaration context. However, since you've only shared a single line, I need to see more context to give a complete fix.
+
+That said, based on the fragment you've shown, here are the likely issues:
+
+1. **The comment syntax**: Lean 4 uses `--` for single-line comments, which is correct. But the content after `--` might not be the issue.
+
+2. **`optionLt` usage**: This line appears to be a standalone expression rather than part of a proper definition/declaration.
+
+3. **Missing surrounding structure**: This line needs to be inside a `def`, `let`, `where`, or some other valid Lean construct.
+
+Here's a minimal fix assuming this is meant to be part of a definition:
+
+```lean
+def tinyBaby (p : Patient) : Bool :=
+  optionLt p.ageInMonth 2   -- Tiny Baby ( < 2 months)
+```
+
+If this is part of a larger structure or list (which the trailing comma suggests), it might look like:
+
+```lean
+def criteria (p : Patient) : List Bool :=
+  [ optionLt p.ageInMonth 2   -- Tiny Baby ( < 2 months)
+  ]
+```
+
+**If you can share the full file or more surrounding code**, I can give you a precise fix. The core issue is that the line you showed is not inside any valid Lean command (like `def`, `theorem`, `let`, etc.) — it's appearing at the top level where Lean expects a command keyword.
+
+============================================================
+
+The error is that `optionLt` is not a defined function. You need to either define it or replace it with proper logic to compare an `Option` value with `2`.
+
+Since `p.ageInMonth` is likely of type `Option Nat` (or `Option Int`/`Option Float`), you need to handle the `Option` case. Here's the fix:
+
+```lean
+def tinyBaby (p : Patient) : Bool :=
+  match p.ageInMonth with
+  | some age => age < 2   -- Tiny Baby ( < 2 months)
+  | none => false
+```
+
+This pattern matches on the `Option` value:
+- If `p.ageInMonth` is `some age`, it checks whether `age < 2`.
+- If `p.ageInMonth` is `none` (no age data available), it returns `false`.
+
+If `optionLt` was intended to be a helper function used elsewhere as well, you can define it:
+
+```lean
+def optionLt (val : Option Nat) (threshold : Nat) : Bool :=
+  match val with
+  | some v => v < threshold
+  | none => false
+
+def tinyBaby (p : Patient) : Bool :=
+  optionLt p.ageInMonth 2   -- Tiny Baby ( < 2 months)
+```
+
+Either approach will resolve the `Unknown identifier 'optionLt'` error.
+
+============================================================
+
+I need to see the definition of `Patient` to fix this properly. The error suggests that `Patient` is likely defined as a type alias (using `def` or `abbrev`) rather than as a `structure`, which means field projection notation (`p.ageInMonth`) won't work.
+
+Without seeing the full definition, the most likely issue is that `Patient` is defined something like:
+
+```lean
+def Patient := { ageInMonth : Option Nat }
+```
+
+or similar. Here are the most common fixes:
+
+**If `Patient` is a structure**, it should be defined with the `structure` keyword:
+
+```lean
+structure Patient where
+  ageInMonth : Option Nat
+```
+
+Then your original code works as-is.
+
+**If you cannot change the `Patient` definition** and it's defined as, say, an abbreviation or a def wrapping a structure, you may need to pattern match differently.
+
+The most likely fix, assuming `Patient` is defined as a structure but perhaps needs the `structure` keyword:
+
+```lean
+structure Patient where
+  ageInMonth : Option Nat
+
+def tinyBaby (p : Patient) : Bool :=
+  match p.ageInMonth with
+  | some age => age < 2   -- Tiny Baby ( < 2 months)
+  | none => false
+```
+
+If `Patient` is already defined elsewhere and you can't change it, please share its definition so I can provide the exact fix. The core issue is that `Patient` needs to be declared with `structure` (not `def` or `abbrev`) for dot notation to work, or you need to use a different access pattern matching the actual definition.
+
+============================================================
+
+The issue is that `{ ageInMonth : Option Nat }` is being interpreted as anonymous constructor / structure instance notation, not as a structure definition. You need to use the `structure` keyword to define a structure in Lean.
+
+Here's the fixed code:
+
+```lean
+structure Patient where
+  ageInMonth : Option Nat
+```
+
+============================================================
+
+Looking at the question: "Below what age is a child always a priority?"
+
+From the `Priority` function, I can see the condition `optionLt p.ageInMonth 2` which means "Tiny Baby (< 2 months)" is a priority condition. So below 2 months, a child is always a priority.
+
+I need to show that for any patient with `ageInMonth` less than 2 months, the triage assessment gives at least `Priority` level (either `Emergency` or `Priority`), regardless of other conditions.
+
+Let me construct the proof carefully. The key insight is: if `ageInMonth = some n` where `n < 2`, then `Priority p = some true` (since `optionLt p.ageInMonth 2 = some true`), so the triage is either `Emergency` or `Priority`.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- The answer is: below 2 months of age, a child is always a priority.
+-- This comes from the Priority function's first condition: optionLt p.ageInMonth 2
+
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 1
+  oedema := some []
+}
+
+-- We prove that any patient under 2 months old is triaged as Emergency or Priority (never Queue or askForInfo)
+theorem ValidPlan :
+  ∀ (p : Patient), ∀ (n : Nat), p.ageInMonth = some n → n < 2 →
+    (TriageAssessment p = Triage.Emergency ∨ TriageAssessment p = Triage.Priority) := by
+  intro p n hAge hLt
+  unfold TriageAssessment
+  -- Case split on Emergency p
+  match hE : Emergency p with
+  | some true =>
+    left; rfl
+  | some false =>
+    right
+    -- We need to show Priority p = some true
+    -- Since p.ageInMonth = some n and n < 2, optionLt p.ageInMonth 2 = some true
+    have hOptLt : optionLt p.ageInMonth 2 = some true := by
+      unfold optionLt; rw [hAge]; simp; exact hLt
+    -- Therefore Priority p involves optionOrList with some true in the list
+    have hPri : Priority p = some true := by
+      unfold Priority
+      unfold optionOrList
+      simp [hOptLt]
+    rw [hPri]
+    rfl
+  | none =>
+    -- TriageAssessment returns askForInfo, but we need to show this can't happen
+    -- when ageInMonth is known and < 2, Priority p = some true
+    -- If Emergency p = none, TriageAssessment = askForInfo
+    -- But we need to derive a contradiction or show Priority would give some true
+    -- Actually TriageAssessment returns askForInfo here, so we need to show Emergency p ≠ none
+    -- Wait, Emergency p can be none even with age known. Let me reconsider.
+    -- Actually when Emergency p = none, TriageAssessment = askForInfo, which is neither Emergency nor Priority
+    -- But this CAN happen. So we need to handle this case differently.
+    -- Actually, the question asks about Priority triage specifically from the Priority function.
+    -- Let me reformulate: the answer is 2 months, demonstrated by Priority always being some true.
+    exfalso
+    -- We know Priority p = some true, but TriageAssessment doesn't check it when Emergency is none
+    -- This path is valid (askForInfo), so our theorem as stated may be too strong.
+    -- Let me show Priority p = some true instead.
+    sorry
+
+-- A cleaner theorem: below 2 months, Priority assessment is always true
+theorem ValidPlanClean :
+  ∀ (p : Patient), ∀ (n : Nat), p.ageInMonth = some n → n < 2 →
+    Priority p = some true := by
+  intro p n hAge hLt
+  unfold Priority
+  have hOptLt : optionLt p.ageInMonth 2 = some true := by
+    unfold optionLt; rw [hAge]; simp; exact hLt
+  unfold optionOrList
+  simp [hOptLt]
+```
+
+============================================================
+
+
+
+Looking at the error, the issue is at line 34 where `rfl` is used but there are no goals left to solve after `rw [hPri]`. The `rw` already closes the goal. Let me also fix the `sorry` case properly.
+
+Let me trace through the logic more carefully:
+
+1. When `Emergency p = some false` and we show `Priority p = some true`, after rewriting, the goal becomes `some true = some true` which `rfl` would solve, but perhaps `rw [hPri]` already solves it via `rfl` internally. Let me also handle the `none` case.
+
+For the `none` case, `TriageAssessment` returns `Triage.askForInfo`, which is neither `Emergency` nor `Priority`, so the theorem as stated is too strong. We need to show `Emergency p ≠ none` when age is known, OR weaken the theorem. The cleanest fix is to remove the `sorry` theorem and keep only the clean one.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- The answer is: below 2 months of age, a child is always a priority.
+-- This comes from the Priority function's first condition: optionLt p.ageInMonth 2
+
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 1
+  oedema := some []
+}
+
+-- A cleaner theorem: below 2 months, Priority assessment is always true
+theorem ValidPlanClean :
+  ∀ (p : Patient), ∀ (n : Nat), p.ageInMonth = some n → n < 2 →
+    Priority p = some true := by
+  intro p n hAge hLt
+  unfold Priority
+  have hOptLt : optionLt p.ageInMonth 2 = some true := by
+    unfold optionLt; rw [hAge]; simp; exact hLt
+  unfold optionOrList
+  simp [hOptLt]
+```
+
+The key changes:
+1. **Removed the `ValidPlan` theorem entirely** — it was too strong as stated. When `Emergency p = none`, `TriageAssessment` returns `Triage.askForInfo`, which is neither `Triage.Emergency` nor `Triage.Priority`. This case can occur even when age is known (if other fields like `oedema` are missing), so the theorem cannot be proven without additional assumptions. The `some false` branch also had a spurious `rfl` after `rw [hPri]` already closed the goal (causing the "No goals to be solved" error).
+2. **Kept `ValidPlanClean`** which correctly states and proves that for any patient under 2 months old, the `Priority` function returns `some true`, regardless of other patient fields.
+
+============================================================
+

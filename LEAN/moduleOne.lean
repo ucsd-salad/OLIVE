@@ -1,3 +1,4 @@
+namespace moduleOne
 /-- Emergency Triage Assessment and Treatment, Manual for participants
     by the World Health Organization
     Module 1: Triage and the "ABCD" Concept
@@ -205,3 +206,5 @@ def TriageAssessment (p : Patient) : Triage :=
     then Triage.Emergency
   else if Priority p then Triage.Priority
   else Triage.Queue
+
+end moduleOne

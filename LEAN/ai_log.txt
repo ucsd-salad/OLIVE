@@ -1,0 +1,52 @@
+Looking at the medical scenario: "What should you do if the child has a priority sign?"
+
+According to the triage assessment system, if a patient has a priority sign (and no emergency signs), they should be triaged as `Priority`. The question asks what to do when a child has a priority sign - the answer is they get `Triage.Priority`.
+
+I need to construct a patient who has no emergency signs (all emergency conditions are `some false`) but has at least one priority sign (making `Priority p = some true`), and then prove that `TriageAssessment` returns `Triage.Priority`.
+
+Let me construct a patient with a clear priority sign (e.g., a burn) and all emergency-related fields explicitly set to false.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- A patient with a priority sign (burn) but no emergency signs
+def examplePatient : Patient :=
+{
+  -- No emergency signs
+  breathing := some true,          -- breathing is fine (not false)
+  airwayObstructed := some false,
+  centralCyanosis := some false,
+  unableToTalkEatFeed := some false,
+  severeChestIndrawing := some false,
+  accessoryMuscleUseBreating := some false,
+  veryFastBreathing := some false,
+  breatingIsTiring := some false,
+  capillaryRefill := some 2,       -- normal (not > 3)
+  pulse := some Pulse.normal,
+  avpu := some AVPU.Alert,
+  sunkenEyes := some false,
+  skinTurgor := some SpeedMeasurement.normal,
+  -- Priority sign: burn
+  burn := some true,
+  -- Other priority fields explicitly false to keep things clean
+  ageInMonth := some 24,
+  temperature := some Temperature.normal,
+  fracture := some false,
+  headInjury := some false,
+  acuateAbdominalPain := some false,
+  whitePalm := some false,
+  poison := some false,
+  agony := some false,
+  urgentReferral := some false,
+  wasting := some false,
+  oedema := some [],
+}
+
+-- When a child has a priority sign (and no emergency signs), they should be triaged as Priority
+theorem ValidPlan :
+  TriageAssessment examplePatient = Triage.Priority := by
+  native_decide
+```
+
+============================================================
+

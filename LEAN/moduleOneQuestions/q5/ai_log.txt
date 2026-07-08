@@ -1,0 +1,242 @@
+Looking at the medical scenario, the question asks: "What signs of malnutrition do you check during triage?"
+
+From the Patient structure and the Priority function, I can identify the malnutrition-related checks:
+1. `wasting` — "look rapidly at arms, legs, chest to assess wasting (marasmus)" — this is visible severe wasting
+2. `oedema` containing `BodyPart.feet` — "Oedema of both feet" — this indicates kwashiorkor
+
+These are the two signs of malnutrition checked during triage. I need to prove that when these signs are present, the patient gets Priority triage, and that these are specifically the malnutrition indicators.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- The signs of malnutrition checked during triage are:
+-- 1. Visible severe wasting (marasmus) - captured by `wasting`
+-- 2. Oedema of both feet (kwashiorkor) - captured by `oedema` containing `BodyPart.feet`
+
+-- Example patient showing wasting (marasmus)
+def examplePatientWasting : Patient :=
+{
+  wasting := some true
+  oedema := some []
+}
+
+-- Example patient showing oedema of feet (kwashiorkor)
+def examplePatientOedema : Patient :=
+{
+  oedema := some [BodyPart.feet]
+}
+
+-- A patient with no malnutrition signs and no other priority/emergency signs goes to Queue
+def examplePatientNoMalnutrition : Patient :=
+{
+  ageInMonth := some 24
+  breathing := some true
+  airwayObstructed := some false
+  centralCyanosis := some false
+  smiling := some true
+  crying := some false
+  severeChestIndrawing := some false
+  accessoryMuscleUseBreating := some false
+  unableToTalkEatFeed := some false
+  veryFastBreathing := some false
+  breatingIsTiring := some false
+  capillaryRefill := some 2
+  pulse := some Pulse.normal
+  avpu := some AVPU.Alert
+  sunkenEyes := some false
+  skinTurgor := some SpeedMeasurement.normal
+  temperature := some Temperature.normal
+  fracture := some false
+  headInjury := some false
+  acuateAbdominalPain := some false
+  whitePalm := some false
+  poison := some false
+  agony := some false
+  urgentReferral := some false
+  wasting := some false
+  oedema := some []
+  burn := some false
+}
+
+-- Wasting triggers Priority triage (sign of malnutrition - marasmus)
+theorem ValidPlan :
+  TriageAssessment examplePatientWasting = Triage.Priority := by native_decide
+
+-- Oedema of feet triggers Priority triage (sign of malnutrition - kwashiorkor)
+theorem oedemaFeetIsPriority :
+  TriageAssessment examplePatientOedema = Triage.askForInfo := by native_decide
+
+-- When oedema info is fully known along with other fields, oedema of feet gives Priority
+def examplePatientOedemaFull : Patient :=
+{
+  ageInMonth := some 24
+  breathing := some true
+  airwayObstructed := some false
+  centralCyanosis := some false
+  severeChestIndrawing := some false
+  accessoryMuscleUseBreating := some false
+  unableToTalkEatFeed := some false
+  veryFastBreathing := some false
+  breatingIsTiring := some false
+  capillaryRefill := some 2
+  pulse := some Pulse.normal
+  avpu := some AVPU.Alert
+  sunkenEyes := some false
+  skinTurgor := some SpeedMeasurement.normal
+  temperature := some Temperature.normal
+  fracture := some false
+  headInjury := some false
+  acuateAbdominalPain := some false
+  whitePalm := some false
+  poison := some false
+  agony := some false
+  urgentReferral := some false
+  wasting := some false
+  oedema := some [BodyPart.feet]
+  burn := some false
+}
+
+theorem oedemaFeetFullPriority :
+  TriageAssessment examplePatientOedemaFull = Triage.Priority := by native_decide
+
+-- Without malnutrition signs (and no other issues), patient goes to Queue
+theorem noMalnutritionQueue :
+  TriageAssessment examplePatientNoMalnutrition = Triage.Queue := by native_decide
+```
+
+============================================================
+
+Looking at the error, `TriageAssessment examplePatientWasting` doesn't evaluate to `Triage.Priority` - it likely evaluates to `Triage.askForInfo` because `examplePatientWasting` only has two fields set, so most fields are `none`, which means the triage function asks for more info before it can determine priority.
+
+Similarly, `examplePatientOedema` only has one field set, so it also returns `askForInfo`.
+
+The fix is to:
+1. For the wasting theorem, change the expected result to `askForInfo` (since most fields are missing) or provide all fields.
+2. For the oedema theorem, it's already `askForInfo` which seems correct.
+3. Keep the full patient examples as they are and verify their results.
+
+Let me provide full patient definitions for the wasting and oedema cases, and verify the theorems match actual evaluation results.
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- The signs of malnutrition checked during triage are:
+-- 1. Visible severe wasting (marasmus) - captured by `wasting`
+-- 2. Oedema of both feet (kwashiorkor) - captured by `oedema` containing `BodyPart.feet`
+
+-- Example patient showing wasting (marasmus) with all fields provided
+def examplePatientWasting : Patient :=
+{
+  ageInMonth := some 24
+  breathing := some true
+  airwayObstructed := some false
+  centralCyanosis := some false
+  severeChestIndrawing := some false
+  accessoryMuscleUseBreating := some false
+  unableToTalkEatFeed := some false
+  veryFastBreathing := some false
+  breatingIsTiring := some false
+  capillaryRefill := some 2
+  pulse := some Pulse.normal
+  avpu := some AVPU.Alert
+  sunkenEyes := some false
+  skinTurgor := some SpeedMeasurement.normal
+  temperature := some Temperature.normal
+  fracture := some false
+  headInjury := some false
+  acuateAbdominalPain := some false
+  whitePalm := some false
+  poison := some false
+  agony := some false
+  urgentReferral := some false
+  wasting := some true
+  oedema := some []
+  burn := some false
+}
+
+-- Example patient showing oedema of feet (kwashiorkor) - partial info
+def examplePatientOedema : Patient :=
+{
+  oedema := some [BodyPart.feet]
+}
+
+-- A patient with no malnutrition signs and no other priority/emergency signs goes to Queue
+def examplePatientNoMalnutrition : Patient :=
+{
+  ageInMonth := some 24
+  breathing := some true
+  airwayObstructed := some false
+  centralCyanosis := some false
+  smiling := some true
+  crying := some false
+  severeChestIndrawing := some false
+  accessoryMuscleUseBreating := some false
+  unableToTalkEatFeed := some false
+  veryFastBreathing := some false
+  breatingIsTiring := some false
+  capillaryRefill := some 2
+  pulse := some Pulse.normal
+  avpu := some AVPU.Alert
+  sunkenEyes := some false
+  skinTurgor := some SpeedMeasurement.normal
+  temperature := some Temperature.normal
+  fracture := some false
+  headInjury := some false
+  acuateAbdominalPain := some false
+  whitePalm := some false
+  poison := some false
+  agony := some false
+  urgentReferral := some false
+  wasting := some false
+  oedema := some []
+  burn := some false
+}
+
+-- Wasting triggers Priority triage (sign of malnutrition - marasmus)
+theorem ValidPlan :
+  TriageAssessment examplePatientWasting = Triage.Priority := by native_decide
+
+-- Oedema of feet with partial info triggers askForInfo
+theorem oedemaFeetIsPriority :
+  TriageAssessment examplePatientOedema = Triage.askForInfo := by native_decide
+
+-- When oedema info is fully known along with other fields, oedema of feet gives Priority
+def examplePatientOedemaFull : Patient :=
+{
+  ageInMonth := some 24
+  breathing := some true
+  airwayObstructed := some false
+  centralCyanosis := some false
+  severeChestIndrawing := some false
+  accessoryMuscleUseBreating := some false
+  unableToTalkEatFeed := some false
+  veryFastBreathing := some false
+  breatingIsTiring := some false
+  capillaryRefill := some 2
+  pulse := some Pulse.normal
+  avpu := some AVPU.Alert
+  sunkenEyes := some false
+  skinTurgor := some SpeedMeasurement.normal
+  temperature := some Temperature.normal
+  fracture := some false
+  headInjury := some false
+  acuateAbdominalPain := some false
+  whitePalm := some false
+  poison := some false
+  agony := some false
+  urgentReferral := some false
+  wasting := some false
+  oedema := some [BodyPart.feet]
+  burn := some false
+}
+
+theorem oedemaFeetFullPriority :
+  TriageAssessment examplePatientOedemaFull = Triage.Priority := by native_decide
+
+-- Without malnutrition signs (and no other issues), patient goes to Queue
+theorem noMalnutritionQueue :
+  TriageAssessment examplePatientNoMalnutrition = Triage.Queue := by native_decide
+```
+
+============================================================
+

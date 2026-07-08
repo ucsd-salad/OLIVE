@@ -1,0 +1,10 @@
+name = "tutorial-lean"
+version = "0.1.0"
+defaultTargets = ["tutorial-lean"]
+
+[[lean_lib]]
+name = "Tutorial.Lean"
+
+[[lean_exe]]
+name = "tutorial-lean"
+root = "Main"
