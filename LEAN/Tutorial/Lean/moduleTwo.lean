@@ -66,6 +66,19 @@ inductive Triage where
   | askForInfo
 deriving DecidableEq, Repr
 
+-- Treatment actions
+inductive Treatment where
+  | ManageAirway
+  | GiveOxygen
+  | KeepWarm
+  | MouthFingerSwap
+  | Heimlich
+  | BackSlaps
+  | ChestThrusts
+  | AskForInfo
+  | RemoveForeignBodyFromMouth
+  | CheckBreathing
+
 /-- AVPU categories for coma assessment -/
 inductive AVPU where
   | Alert
@@ -240,3 +253,19 @@ def TriageAssessment (p : Patient) : Triage :=
 
   | none =>
       Triage.askForInfo
+
+
+-- module 2 treatment plans
+
+-- airway management for chocking child, obstructed airway
+def airWayManagement (p : Patient) : List Treatment :=
+  let treatment : List Treatment := [Treatment.BackSlaps]
+  match p.ageInMonth with
+  | some age =>
+      if age < 5 then
+        treatment ++ [Treatment.ChestThrusts]
+      else
+        treatment ++ [Treatment.Heimlich]
+  | none =>
+      let treatment : List Treatment := [Treatment.AskForInfo]
+  treatment ++ [Treatment.RemoveForeignBodyFromMouth, Treatment.CheckBreathing]

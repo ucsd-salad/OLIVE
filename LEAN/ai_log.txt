@@ -1,35 +1,34 @@
-Looking at the medical scenario: "What should you do if the child has a priority sign?"
+Looking at this scenario: A two-year-old male is rushed to the clinic acutely convulsing.
 
-According to the triage assessment system, if a patient has a priority sign (and no emergency signs), they should be triaged as `Priority`. The question asks what to do when a child has a priority sign - the answer is they get `Triage.Priority`.
+**Medical Analysis:**
+- A convulsing child would be unresponsive or only responsive to pain on the AVPU scale
+- Convulsions indicate a neurological emergency
+- This falls under "C" in ABCD (Circulation, **Coma**, **Convulsion**)
+- A child who is actively convulsing would be assessed as AVPU = Pain or Unresponsive
 
-I need to construct a patient who has no emergency signs (all emergency conditions are `some false`) but has at least one priority sign (making `Priority p = some true`), and then prove that `TriageAssessment` returns `Triage.Priority`.
+Since the child is "acutely convulsing," they would be at most responsive to pain (AVPU.Pain), which triggers the `CirculationComaConulsion` check, which feeds into `Emergency`. This should result in **Emergency** triage.
 
-Let me construct a patient with a clear priority sign (e.g., a burn) and all emergency-related fields explicitly set to false.
+The child is 2 years old = 24 months.
 
 ```lean
 import Tutorial.Lean.moduleOneRevised
 
--- A patient with a priority sign (burn) but no emergency signs
 def examplePatient : Patient :=
 {
-  -- No emergency signs
-  breathing := some true,          -- breathing is fine (not false)
+  ageInMonth := some 24,
+  avpu := some AVPU.Pain,
+  breathing := some true,
   airwayObstructed := some false,
   centralCyanosis := some false,
-  unableToTalkEatFeed := some false,
   severeChestIndrawing := some false,
   accessoryMuscleUseBreating := some false,
+  unableToTalkEatFeed := some false,
   veryFastBreathing := some false,
   breatingIsTiring := some false,
-  capillaryRefill := some 2,       -- normal (not > 3)
+  capillaryRefill := some 2,
   pulse := some Pulse.normal,
-  avpu := some AVPU.Alert,
   sunkenEyes := some false,
   skinTurgor := some SpeedMeasurement.normal,
-  -- Priority sign: burn
-  burn := some true,
-  -- Other priority fields explicitly false to keep things clean
-  ageInMonth := some 24,
   temperature := some Temperature.normal,
   fracture := some false,
   headInjury := some false,
@@ -40,13 +39,54 @@ def examplePatient : Patient :=
   urgentReferral := some false,
   wasting := some false,
   oedema := some [],
+  burn := some false,
+  emotion := some Emotion.crying
 }
 
--- When a child has a priority sign (and no emergency signs), they should be triaged as Priority
 theorem ValidPlan :
-  TriageAssessment examplePatient = Triage.Priority := by
+  TriageAssessment examplePatient = Triage.Emergency := by
   native_decide
 ```
+
+**Explanation:**
+- The key finding is `avpu := some AVPU.Pain` — a convulsing child is only responsive to pain stimuli
+- `CirculationComaConulsion` checks for `optionEq p.avpu AVPU.Pain`, which returns `some true`
+- This makes `Emergency p` return `some true`
+- Therefore `TriageAssessment` returns `Triage.Emergency`
+- All other fields are filled in with normal/negative values since the scenario only mentions convulsions
+- The proof is completed by `native_decide` which computationally verifies the equality
+
+============================================================
+
+## Triage Assessment: Two-Year-Old with Acute Convulsions
+
+**This child should be triaged as an EMERGENCY.**
+
+### Explanation
+
+Based on the verified assessment, a two-year-old (24 months) presenting with acute convulsions is classified as **Emergency** triage. Here's why:
+
+The triage system follows the **ABCD** approach:
+
+- **A (Airway):** Clear — the child is breathing, no airway obstruction, no central cyanosis.
+- **B (Breathing):** No severe respiratory distress — no chest indrawing, no accessory muscle use, able to feed, no very fast breathing.
+- **C (Circulation, Coma, Convulsion):** **This is where the emergency is triggered.** A child who is actively convulsing is assessed on the AVPU scale as responsive only to **Pain** (not alert, not responding to verbal stimuli). Under the ABCD protocol, a patient who is only responsive to pain — indicating coma or active convulsion — meets the criteria for emergency triage.
+- **D (Dehydration):** No signs — no sunken eyes, normal skin turgor.
+
+### What This Means
+
+Even though the child's airway, breathing, circulation, and hydration status are otherwise stable, the convulsion alone — captured by the AVPU assessment showing the child is only responsive to pain — is sufficient to classify this as an **Emergency** under the "C" (Circulation, Coma, Convulsion) criterion.
+
+### Immediate Action
+
+As an Emergency triage case, this child requires **immediate** assessment and treatment ahead of all Priority and Queue patients. Per emergency protocols, you should:
+
+1. Manage the airway and ensure the child is in a safe position
+2. Administer appropriate anticonvulsant therapy
+3. Assess for underlying causes (e.g., fever/malaria, meningitis, poisoning, head injury)
+4. Continuously monitor vital signs
+
+**Do not delay treatment** — emergency-triaged patients must receive care without waiting.
 
 ============================================================
 

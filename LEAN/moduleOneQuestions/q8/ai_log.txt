@@ -1,0 +1,51 @@
+Looking at the medical scenario: "What should you do if the child has a priority sign?"
+
+The answer is that the child should be triaged as **Priority** (assuming they don't have emergency signs). I need to construct a patient who has a priority sign but no emergency signs, and prove that the triage assessment returns `Triage.Priority`.
+
+Let me pick a simple priority sign - for example, a burn. I need to ensure:
+1. Emergency returns `some false` (all emergency conditions are explicitly false)
+2. Priority returns `some true` (at least one priority condition is true)
+
+```lean
+import Tutorial.Lean.moduleOneRevised
+
+-- A patient with a priority sign (burn) but no emergency signs
+def examplePatient : Patient :=
+{
+  ageInMonth := some 24,          -- not a tiny baby
+  breathing := some true,         -- breathing (no airway emergency)
+  airwayObstructed := some false,
+  centralCyanosis := some false,
+  emotion := none,
+  severeChestIndrawing := some false,
+  accessoryMuscleUseBreating := some false,
+  unableToTalkEatFeed := some false,
+  veryFastBreathing := some false,
+  breatingIsTiring := some false,
+  capillaryRefill := some 2,      -- normal (not > 3)
+  pulse := some Pulse.normal,
+  avpu := some AVPU.Alert,
+  sunkenEyes := some false,
+  skinTurgor := some SpeedMeasurement.normal,
+  temperature := some Temperature.normal,
+  fracture := some false,
+  headInjury := some false,
+  acuateAbdominalPain := some false,
+  whitePalm := some false,
+  poison := some false,
+  agony := some false,
+  urgentReferral := some false,
+  wasting := some false,
+  oedema := some [],
+  burn := some true              -- priority sign: burn
+}
+
+-- If the child has a priority sign (and no emergency signs), they should be triaged as Priority
+theorem ValidPlan :
+  TriageAssessment examplePatient = Triage.Priority := by
+  -- Unfold all definitions and let Lean evaluate
+  native_decide
+```
+
+============================================================
+

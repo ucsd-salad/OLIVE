@@ -1,17 +1,30 @@
-from anthropic import Anthropic
-from dotenv import load_dotenv
 import subprocess
 import os
-from pathlib import Path
 import re
-
-CANDIDATE_PATH = "candidate.lean"
-REFERENCE_PATH = "Tutorial/Lean/moduleOneRevised.lean"
-with open(REFERENCE_PATH, "r") as f:
-            REFERENCE_SPEC = f.read()
+from dotenv import load_dotenv
+from anthropic import Anthropic
 
 load_dotenv()
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+CANDIDATE_PATH = "candidate.lean"
+REFERENCE_PATH = "Tutorial/Lean/moduleOneRevised.lean"
+with open(REFERENCE_PATH, "r", encoding="utf-8") as reference_spec:
+            REFERENCE_SPEC = reference_spec.read()
+IMPORT_LINE = "import Tutorial.Lean.moduleOneRevised"
+SYSTEM_PROMPT = f"""
+You are a Lean theorem prover.
+
+The following Lean specification is immutable.
+You may only use definitions from this specification.
+Any symptom that is identified or ruled out should be supported by the user prompt. 
+
+{REFERENCE_SPEC}
+
+RULES:
+- Do not modify imports.
+- Do not change theorem statements.
+"""
 
 # Calling Claude with the prompt 
 def call_claude(prompt, max_new_tokens=4000, temperature=0.7):
@@ -19,14 +32,23 @@ def call_claude(prompt, max_new_tokens=4000, temperature=0.7):
         model="claude-opus-4-6",
         max_tokens=max_new_tokens, # how long the response can be (one token is roughly 4 characters, so 200 tokens is about 800 characters)
         temperature=temperature, # randomness (0 = deterministic, higher temperature = more random)
+        # caching the reference spec that never changes-- it does not work right now because caching content is too small (?)
+        system=[
+            {
+                "type":"text",
+                "text": SYSTEM_PROMPT,
+                "cache_control" : {"type": "ephemeral"}, 
+            }
+        ], 
         messages=[
             {"role": "user", "content": prompt}
         ],
     )
     # writing the claude outputs in log.txt to keep track
-    with open("ai_log.txt", "a") as f:
+    with open("ai_log.txt", "a", encoding="utf-8") as f:
         f.write(message.content[0].text + "\n\n" + "="*60 + "\n\n")
-
+    # temp statement to see if caching is active 
+    print(message.usage) 
     return message.content[0].text
 
 # Extract only the lean code from the generated response  
@@ -45,16 +67,30 @@ def extract_lean_code(response_text):
 def sound_proof(response_text) -> bool:
     # make sure the given proof does not contain forbidden words 
     forbidden = [
-        r"\bsorry\b"
+        r"\bsorry\b",
+        r"\badmit\b",
+        r"\bstructure\b", # might delete later, for now so that the LLM does not make it's own procedures 
     ]
-    pattern = r"\b( " + "|".join(forbidden) + r")\b"
+    pattern = r"\b(" + "|".join(forbidden) + r")\b"
     return re.search(pattern, response_text) is None  
 
 
+# Ensuring that the correct import line is at the top of every saved candidate.lean file 
+def ensure_import(content: str) -> str:
+    lines = content.splitlines()
+    first_nonempty = next((line.strip() for line in lines if line.strip()), "") 
+    if first_nonempty == IMPORT_LINE:
+         return content 
+    return IMPORT_LINE + "\n\n" + content.lstrip()
+
 # Save the argument content to a file at the specified path and return the path.
-def save_file(content, file_path):
+def save_file(content: str, file_path: str) -> str:
+    content = extract_lean_code(content)
+    content = ensure_import(content)
+
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
+
     return file_path
 
 
@@ -67,95 +103,47 @@ def run_lean(lean_file):
     result = subprocess.run(
         ["lake", "env", "lean", lean_file],
         capture_output=True,
-        text=True
+        text=True,
+        check=False, 
     )
     return result.returncode, result.stdout, result.stderr
 
 
-# Helper function that implements a loop to repair syntax errors in the generated Lean code.
-def repair_syntax_loop(max_attempts=5):
-    for attempt in range(max_attempts):
-        print(f"\n[Syntax Attempt {attempt+1}]")
-
-        returncode, stdout, stderr = run_lean(CANDIDATE_PATH)
-
-        print(stdout)
-
-        # If there are no syntax errors, we can exit the loop and proceed to logic repair.
-        if returncode == 0:
-            return True
-
-        # If there is a syntax error, we will prompt the LLM to fix only the candidate plan.
-        with open(CANDIDATE_PATH, "r", encoding="utf-8") as f:
-            candidate_code = f.read()
-
-        prompt = f"""
-Fix this Lean code so it compiles.
-
-Rules: 
-- Only use the information directly given by user about the patient information 
-- Do not use trivially correct proofs. (e.g. 'sorry') 
-Current:
-{candidate_code}
-
-Error:
-stdout of Lean: {stdout}\
-stderr of Lean: {stderr}
-"""     
-        # generate the plan with the prompt
-        generated_plan = call_claude(prompt, temperature=0)
-        # exrtact the Lean code portion of the LLM response
-        lean_code = extract_lean_code(generated_plan) 
-        # save the Lean code to candidate_path
-        save_file(lean_code, CANDIDATE_PATH)
-
-    # If we exhaust all attempts without success, return False to indicate failure.
-    return False
-
-
-# Helper function that implements a loop to repair logic errors and get a safe plan. 
+# Helper function that implements a loop to repair errors and get a safe plan. 
 # Also ensures that the plan is not trivially true or too simple 
-
-def repair_logic_loop(max_attempts=5):
+def repair_loop(max_attempts=5):
     for attempt in range(max_attempts):
-        print(f"\n[Logic Attempt {attempt+1}]")
+        print(f"\n[Repair Attempt {attempt+1}]")
+        prompt = ""
         # Run the Lean code to capture the diagnostics and return values 
         returncode, stdout, stderr = run_lean(CANDIDATE_PATH)
         print(stdout)
 
-        with open(CANDIDATE_PATH, "r") as f:
+        with open(CANDIDATE_PATH, "r", encoding="utf-8") as f:
             candidate_code = f.read()
         # Check to make sure the plan is sound and not too simple
         if not sound_proof(candidate_code) : 
-            prompt = "The proof was rejected due to being trivially true and too simple.\n"
-        else : 
-            if returncode == 0:
-                print("SAFE and SOUND: No violating instance exists.")
-                return True
-        #if plan becomes uncompilable, we need to go back to syntax repair loop to fix it before we can continue logic repair.
-        if (returncode == 1):
-            print("Syntax error detected during logic repair. Switching back to syntax repair.")
-            if not repair_syntax_loop():
-                print("Failed to repair syntax during logic repair.")
-                return False
-            continue
+            prompt += "The proof was rejected because it contains an incomplete proof placeholder.\n"
+        elif returncode == 0 : 
+            print("SAFE and SOUND: No violating instance exists.")
+            return True
 
         prompt += f"""
 You are repairing a Lean plan.
 
-The theorem that the candidate plan is safe is not proven 
+The theorem that the candidate plan is safe is not proven correctly. 
 
 GOAL:
 Modify the candidate plan so that the proof of its safety is provable. Then prove it. 
 
 RULES:
 - Only use variables, signatures, and fields already defined in the file below. Do NOT invent new names.
-- Do not use trivillay correct proofs (e.g. 'sorry') 
+- Do not use trivially correct proofs (e.g. 'sorry') 
 
-Reference code: 
-{REFERENCE_SPEC}
+Reference spec: 
+The Lean specification has already been provided in the system prompt.
 
-Current plan:
+current code: 
 {candidate_code}
 
 Lean stdout output:
@@ -163,7 +151,6 @@ Lean stdout output:
 Lean stderr output: 
 {stderr}
 """
-
         generated_plan = call_claude(prompt, temperature=0)
         save_file(generated_plan, CANDIDATE_PATH)
 
@@ -173,22 +160,20 @@ Lean stderr output:
 
 # The first generation step where we prompt the LLM to generate a plan from scratch based on the user prompt. 
 def generate_plan(user_prompt):
-    with open(CANDIDATE_PATH, "r") as f:
+    with open(CANDIDATE_PATH, "r", encoding="utf-8") as f:
             candidate_code = f.read()
 
     prompt = f"""
-You have been given a medial scenario: {user_prompt}
+You have been given a medical scenario: {user_prompt}
 
 GOAL: 
 produce the correct answer in Lean and prove its correctness. 
 
-Here is the LEAN CONSTRAINTS AND PROCEDURE (this will NOT be modified):
-{REFERENCE_SPEC}
+The Lean specification has already been provided in the system prompt (will NOT be modified)
 
 RULES: 
 - Use ONLY variables, signatures, and fields already defined in the file below
 - Do NOT invent new names
-- Your entire response should be a compilable Lean code. Put any thoughts and planning in the comments of Lean code. 
 
 WHAT YOU WILL BE MODIFYING (you will define the plan and prove it): 
 {candidate_code} 
@@ -198,37 +183,46 @@ WHAT YOU WILL BE MODIFYING (you will define the plan and prove it):
 
 
 # The full pipeline of generating the initial plan, repairing syntax errors , then repairing logic errors if the generated plan is not safe
-
 def generate_and_verify(user_prompt, rounds=1):
     for i in range(rounds):
         print(f"\n == Pipleline round {i+1} ==")
 
         # generate plan
         generated_response = generate_plan(user_prompt)
-
-        save_file(generated_response, CANDIDATE_PATH)
-
-        # syntax phase
-        if not repair_syntax_loop():
-            print("Failed syntax repair")
-            continue
+        save_file(generated_response, CANDIDATE_PATH) 
 
         # logic phase
-        if repair_logic_loop():
+        if repair_loop():
             print("SAFE PLAN VERIFIED")
+            with open(CANDIDATE_PATH, "r", encoding="utf-8") as f:
+                candidate_code = f.read()
+            print(natural_language(user_prompt, candidate_code))
             return True
 
     print("Failed to produce safe plan")
     return False
 
+def natural_language(user_prompt, candidate_code):
+    prompt = f"""
+Translate the verified response from Lean to natural language. Be sure to address the initial question of the user. 
+If more information was needed for diagnosis, ask an appropriate question that will guide the decision making process.
+Use only information supported by the reference procedure and the verified Lean plan.
 
+user prompt: 
+{user_prompt}
+
+Reference medical procedure
+The Lean specification has already been provided in the system prompt.
+
+verified LLM plan:
+{candidate_code}
+
+ """
+    return call_claude(prompt, temperature=0.7)
 # ------------------ Main ------------------
-
 def main():
-    prompt = """
-What should you do if the child has a priority sign?
-"""
 
+    prompt = input("Enter your medical scenario to be triaged:\n> ")
     generate_and_verify(prompt)
 
 
