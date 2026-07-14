@@ -1,0 +1,912 @@
+{
+  "edges": [
+    {
+      "description": "The initial complaint of head discomfort and nausea is classified as a headache-focused presentation.",
+      "displayByDefault": true,
+      "dst": "focus_mainly_headache",
+      "edgeKind": "classifies_as",
+      "id": "edge:b2502e4761e2",
+      "label": "is classified as",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "classifies_as",
+      "relationLabel": "is classified as",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .inputHeadDiscomfortWithNausea .focusMainlyHeadache => true",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "description": "The initial complaint of head discomfort and nausea is classified as a dizziness/vertigo presentation.",
+      "displayByDefault": true,
+      "dst": "focus_dizziness_or_vertigo",
+      "edgeKind": "classifies_as",
+      "id": "edge:cc901f71cea3",
+      "label": "is classified as",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "classifies_as",
+      "relationLabel": "is classified as",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .inputHeadDiscomfortWithNausea .focusDizzinessOrVertigo => true",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "description": "The initial complaint of head discomfort and nausea is classified as an unclear but concerning presentation.",
+      "displayByDefault": true,
+      "dst": "focus_unclear_but_concerning",
+      "edgeKind": "classifies_as",
+      "id": "edge:1a3f07f2c602",
+      "label": "is classified as",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "classifies_as",
+      "relationLabel": "is classified as",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .inputHeadDiscomfortWithNausea .focusUnclearButConcerning => true",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "description": "A headache-focused complaint may indicate a sudden, severe, or novel symptom pattern.",
+      "displayByDefault": true,
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeKind": "indicates",
+      "id": "edge:d479c597d55d",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusMainlyHeadache .eventSuddenSevereOrNeverBefore => true",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "description": "A headache-focused complaint may indicate a neurologic or visual abnormality.",
+      "displayByDefault": true,
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeKind": "indicates",
+      "id": "edge:c6e783d8dd35",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusMainlyHeadache .eventNeurologicOrVisualAbnormality => true",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "description": "A headache-focused complaint may indicate a systemic trauma or course signal.",
+      "displayByDefault": true,
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeKind": "indicates",
+      "id": "edge:a2823c08fb54",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusMainlyHeadache .eventSystemicTraumaOrCourseSignal => true",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "description": "A dizziness/vertigo complaint may indicate a sudden, severe, or novel symptom pattern.",
+      "displayByDefault": true,
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeKind": "indicates",
+      "id": "edge:18735a5fa20c",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusDizzinessOrVertigo .eventSuddenSevereOrNeverBefore => true",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "description": "A dizziness/vertigo complaint may indicate a neurologic or visual abnormality.",
+      "displayByDefault": true,
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeKind": "indicates",
+      "id": "edge:9d6124dfb229",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusDizzinessOrVertigo .eventNeurologicOrVisualAbnormality => true",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "description": "A dizziness/vertigo complaint may indicate a systemic trauma or course signal.",
+      "displayByDefault": true,
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeKind": "indicates",
+      "id": "edge:d6f01867d020",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusDizzinessOrVertigo .eventSystemicTraumaOrCourseSignal => true",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "description": "An unclear but concerning complaint may indicate a sudden, severe, or novel symptom pattern.",
+      "displayByDefault": true,
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeKind": "indicates",
+      "id": "edge:9431bc56c06c",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusUnclearButConcerning .eventSuddenSevereOrNeverBefore => true",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "description": "An unclear but concerning complaint may indicate a neurologic or visual abnormality.",
+      "displayByDefault": true,
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeKind": "indicates",
+      "id": "edge:a488e325bb3e",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusUnclearButConcerning .eventNeurologicOrVisualAbnormality => true",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "description": "An unclear but concerning complaint may indicate a systemic trauma or course signal.",
+      "displayByDefault": true,
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeKind": "indicates",
+      "id": "edge:f674e0745baf",
+      "label": "may indicate",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "may indicate",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .focusUnclearButConcerning .eventSystemicTraumaOrCourseSignal => true",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "description": "A sudden, severe, or novel symptom pattern indicates an acute danger feature.",
+      "displayByDefault": true,
+      "dst": "course_acute_danger_feature",
+      "edgeKind": "indicates",
+      "id": "edge:bd3e2d567d34",
+      "label": "indicates course",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "indicates course",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .eventSuddenSevereOrNeverBefore .courseAcuteDangerFeature => true",
+      "src": "event_sudden_severe_or_never_before"
+    },
+    {
+      "description": "A neurologic or visual abnormality indicates an acute danger feature.",
+      "displayByDefault": true,
+      "dst": "course_acute_danger_feature",
+      "edgeKind": "indicates",
+      "id": "edge:0bf2ae92126a",
+      "label": "indicates course",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "indicates course",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .eventNeurologicOrVisualAbnormality .courseAcuteDangerFeature => true",
+      "src": "event_neurologic_or_visual_abnormality"
+    },
+    {
+      "description": "A systemic trauma or course signal may indicate an acute danger feature.",
+      "displayByDefault": true,
+      "dst": "course_acute_danger_feature",
+      "edgeKind": "indicates",
+      "id": "edge:55d32a4ab7e1",
+      "label": "indicates course",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "indicates course",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .eventSystemicTraumaOrCourseSignal .courseAcuteDangerFeature => true",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "description": "A systemic trauma or course signal may indicate a persistent course without emergency features.",
+      "displayByDefault": true,
+      "dst": "course_persistent_no_emergency_feature",
+      "edgeKind": "indicates",
+      "id": "edge:121b06c0bad8",
+      "label": "indicates course",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "indicates course",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .eventSystemicTraumaOrCourseSignal .coursePersistentNoEmergencyFeature => true",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "description": "A systemic trauma or course signal may indicate a mild, stable, and improving course.",
+      "displayByDefault": true,
+      "dst": "course_mild_stable_improving_feature",
+      "edgeKind": "indicates",
+      "id": "edge:126572f316b4",
+      "label": "indicates course",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "indicates",
+      "relationLabel": "indicates course",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .eventSystemicTraumaOrCourseSignal .courseMildStableImprovingFeature => true",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "description": "Presence of an acute danger feature supports the hypothesis of vascular or intracranial bleeding.",
+      "displayByDefault": true,
+      "dst": "diagnosis_vascular_or_intracranial_bleeding_possible",
+      "edgeKind": "leads_to",
+      "id": "edge:0eeea0cfaa92",
+      "label": "supports diagnostic hypothesis",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "leads_to",
+      "relationLabel": "supports diagnostic hypothesis",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .courseAcuteDangerFeature .diagnosisVascularOrIntracranialBleedingPossible => true",
+      "src": "course_acute_danger_feature"
+    },
+    {
+      "description": "Presence of an acute danger feature supports the hypothesis of a central infection or head injury.",
+      "displayByDefault": true,
+      "dst": "diagnosis_central_infection_or_head_injury_possible",
+      "edgeKind": "leads_to",
+      "id": "edge:aef0d20c7506",
+      "label": "supports diagnostic hypothesis",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "leads_to",
+      "relationLabel": "supports diagnostic hypothesis",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .courseAcuteDangerFeature .diagnosisCentralInfectionOrHeadInjuryPossible => true",
+      "src": "course_acute_danger_feature"
+    },
+    {
+      "description": "A persistent course without emergency features supports the hypothesis of a central infection or head injury.",
+      "displayByDefault": true,
+      "dst": "diagnosis_central_infection_or_head_injury_possible",
+      "edgeKind": "leads_to",
+      "id": "edge:e32c42c40183",
+      "label": "supports diagnostic hypothesis",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "leads_to",
+      "relationLabel": "supports diagnostic hypothesis",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .coursePersistentNoEmergencyFeature .diagnosisCentralInfectionOrHeadInjuryPossible => true",
+      "src": "course_persistent_no_emergency_feature"
+    },
+    {
+      "description": "A persistent course without emergency features supports the hypothesis of a common non-acute headache or dizziness.",
+      "displayByDefault": true,
+      "dst": "diagnosis_common_non_acute_headache_dizziness_possible",
+      "edgeKind": "leads_to",
+      "id": "edge:f6401082f062",
+      "label": "supports diagnostic hypothesis",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "leads_to",
+      "relationLabel": "supports diagnostic hypothesis",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .coursePersistentNoEmergencyFeature .diagnosisCommonNonAcuteHeadacheDizzinessPossible => true",
+      "src": "course_persistent_no_emergency_feature"
+    },
+    {
+      "description": "A mild, stable, and improving course supports the hypothesis of a common non-acute headache or dizziness.",
+      "displayByDefault": true,
+      "dst": "diagnosis_common_non_acute_headache_dizziness_possible",
+      "edgeKind": "leads_to",
+      "id": "edge:d4da2f738b73",
+      "label": "supports diagnostic hypothesis",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "leads_to",
+      "relationLabel": "supports diagnostic hypothesis",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .courseMildStableImprovingFeature .diagnosisCommonNonAcuteHeadacheDizzinessPossible => true",
+      "src": "course_mild_stable_improving_feature"
+    },
+    {
+      "description": "A possible vascular or intracranial bleeding diagnosis requires an emergency decision.",
+      "displayByDefault": true,
+      "dst": "decision_emergency",
+      "edgeKind": "requires",
+      "id": "edge:a3346bf45661",
+      "label": "requires decision",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "requires",
+      "relationLabel": "requires decision",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .diagnosisVascularOrIntracranialBleedingPossible .decisionEmergency => true",
+      "src": "diagnosis_vascular_or_intracranial_bleeding_possible"
+    },
+    {
+      "description": "A possible central infection or head injury diagnosis requires an emergency decision.",
+      "displayByDefault": true,
+      "dst": "decision_emergency",
+      "edgeKind": "requires",
+      "id": "edge:0670de346093",
+      "label": "requires decision",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "requires",
+      "relationLabel": "requires decision",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .diagnosisCentralInfectionOrHeadInjuryPossible .decisionEmergency => true",
+      "src": "diagnosis_central_infection_or_head_injury_possible"
+    },
+    {
+      "description": "A possible central infection or head injury diagnosis requires a priority decision.",
+      "displayByDefault": true,
+      "dst": "decision_priority",
+      "edgeKind": "requires",
+      "id": "edge:a2a5471c9a2e",
+      "label": "requires decision",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "requires",
+      "relationLabel": "requires decision",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .diagnosisCentralInfectionOrHeadInjuryPossible .decisionPriority => true",
+      "src": "diagnosis_central_infection_or_head_injury_possible"
+    },
+    {
+      "description": "A possible common non-acute headache or dizziness diagnosis requires a priority decision.",
+      "displayByDefault": true,
+      "dst": "decision_priority",
+      "edgeKind": "requires",
+      "id": "edge:7710bd8d2d18",
+      "label": "requires decision",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "requires",
+      "relationLabel": "requires decision",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .diagnosisCommonNonAcuteHeadacheDizzinessPossible .decisionPriority => true",
+      "src": "diagnosis_common_non_acute_headache_dizziness_possible"
+    },
+    {
+      "description": "A possible common non-acute headache or dizziness diagnosis requires a non-urgent decision.",
+      "displayByDefault": true,
+      "dst": "decision_non_urgent",
+      "edgeKind": "requires",
+      "id": "edge:45ee906cfad2",
+      "label": "requires decision",
+      "layer": "semantic",
+      "module": "HeadDiscomfortLayeredGraph",
+      "probabilityTarget": true,
+      "relationKind": "requires",
+      "relationLabel": "requires decision",
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "graphEdge .diagnosisCommonNonAcuteHeadacheDizzinessPossible .decisionNonUrgent => true",
+      "src": "diagnosis_common_non_acute_headache_dizziness_possible"
+    }
+  ],
+  "events": [
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "User reports head discomfort with mild nausea",
+      "nodeId": "input_head_discomfort_with_nausea"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Main complaint is headache",
+      "nodeId": "focus_mainly_headache"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Main complaint is dizziness or room-spinning vertigo",
+      "nodeId": "focus_dizziness_or_vertigo"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Complaint is unclear but feels obviously wrong",
+      "nodeId": "focus_unclear_but_concerning"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Sudden severe symptom or never-before pattern",
+      "nodeId": "event_sudden_severe_or_never_before"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Neurologic or visual abnormality",
+      "nodeId": "event_neurologic_or_visual_abnormality"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Fever, infection, head trauma, persistent course, or low-risk course signal",
+      "nodeId": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Acute danger feature is present",
+      "nodeId": "course_acute_danger_feature"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Persistent or recurrent feature is present, without an immediate emergency feature",
+      "nodeId": "course_persistent_no_emergency_feature"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Mild, stable, and improving feature is present",
+      "nodeId": "course_mild_stable_improving_feature"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Vascular or intracranial bleeding diagnosis is possible",
+      "nodeId": "diagnosis_vascular_or_intracranial_bleeding_possible"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Central infection or head injury diagnosis is possible",
+      "nodeId": "diagnosis_central_infection_or_head_injury_possible"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Common non-acute headache or dizziness diagnosis is possible",
+      "nodeId": "diagnosis_common_non_acute_headache_dizziness_possible"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Emergency",
+      "nodeId": "decision_emergency"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Priority or urgent but not immediate emergency",
+      "nodeId": "decision_priority"
+    },
+    {
+      "event": "semantic_event_node_recorded",
+      "label": "Non-urgent",
+      "nodeId": "decision_non_urgent"
+    },
+    {
+      "dst": "focus_mainly_headache",
+      "edgeId": "edge:b2502e4761e2",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "is classified as",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "dst": "focus_dizziness_or_vertigo",
+      "edgeId": "edge:cc901f71cea3",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "is classified as",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "dst": "focus_unclear_but_concerning",
+      "edgeId": "edge:1a3f07f2c602",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "is classified as",
+      "src": "input_head_discomfort_with_nausea"
+    },
+    {
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeId": "edge:d479c597d55d",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeId": "edge:c6e783d8dd35",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeId": "edge:a2823c08fb54",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_mainly_headache"
+    },
+    {
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeId": "edge:18735a5fa20c",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeId": "edge:9d6124dfb229",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeId": "edge:d6f01867d020",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_dizziness_or_vertigo"
+    },
+    {
+      "dst": "event_sudden_severe_or_never_before",
+      "edgeId": "edge:9431bc56c06c",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "dst": "event_neurologic_or_visual_abnormality",
+      "edgeId": "edge:a488e325bb3e",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "dst": "event_systemic_trauma_or_course_signal",
+      "edgeId": "edge:f674e0745baf",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "may indicate",
+      "src": "focus_unclear_but_concerning"
+    },
+    {
+      "dst": "course_acute_danger_feature",
+      "edgeId": "edge:bd3e2d567d34",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "indicates course",
+      "src": "event_sudden_severe_or_never_before"
+    },
+    {
+      "dst": "course_acute_danger_feature",
+      "edgeId": "edge:0bf2ae92126a",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "indicates course",
+      "src": "event_neurologic_or_visual_abnormality"
+    },
+    {
+      "dst": "course_acute_danger_feature",
+      "edgeId": "edge:55d32a4ab7e1",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "indicates course",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "dst": "course_persistent_no_emergency_feature",
+      "edgeId": "edge:121b06c0bad8",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "indicates course",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "dst": "course_mild_stable_improving_feature",
+      "edgeId": "edge:126572f316b4",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "indicates course",
+      "src": "event_systemic_trauma_or_course_signal"
+    },
+    {
+      "dst": "diagnosis_vascular_or_intracranial_bleeding_possible",
+      "edgeId": "edge:0eeea0cfaa92",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "supports diagnostic hypothesis",
+      "src": "course_acute_danger_feature"
+    },
+    {
+      "dst": "diagnosis_central_infection_or_head_injury_possible",
+      "edgeId": "edge:aef0d20c7506",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "supports diagnostic hypothesis",
+      "src": "course_acute_danger_feature"
+    },
+    {
+      "dst": "diagnosis_central_infection_or_head_injury_possible",
+      "edgeId": "edge:e32c42c40183",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "supports diagnostic hypothesis",
+      "src": "course_persistent_no_emergency_feature"
+    },
+    {
+      "dst": "diagnosis_common_non_acute_headache_dizziness_possible",
+      "edgeId": "edge:f6401082f062",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "supports diagnostic hypothesis",
+      "src": "course_persistent_no_emergency_feature"
+    },
+    {
+      "dst": "diagnosis_common_non_acute_headache_dizziness_possible",
+      "edgeId": "edge:d4da2f738b73",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "supports diagnostic hypothesis",
+      "src": "course_mild_stable_improving_feature"
+    },
+    {
+      "dst": "decision_emergency",
+      "edgeId": "edge:a3346bf45661",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "requires decision",
+      "src": "diagnosis_vascular_or_intracranial_bleeding_possible"
+    },
+    {
+      "dst": "decision_emergency",
+      "edgeId": "edge:0670de346093",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "requires decision",
+      "src": "diagnosis_central_infection_or_head_injury_possible"
+    },
+    {
+      "dst": "decision_priority",
+      "edgeId": "edge:a2a5471c9a2e",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "requires decision",
+      "src": "diagnosis_central_infection_or_head_injury_possible"
+    },
+    {
+      "dst": "decision_priority",
+      "edgeId": "edge:7710bd8d2d18",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "requires decision",
+      "src": "diagnosis_common_non_acute_headache_dizziness_possible"
+    },
+    {
+      "dst": "decision_non_urgent",
+      "edgeId": "edge:45ee906cfad2",
+      "event": "semantic_event_edge_recorded",
+      "relationLabel": "requires decision",
+      "src": "diagnosis_common_non_acute_headache_dizziness_possible"
+    }
+  ],
+  "metadata": {
+    "confidenceMode": "external_or_preserved",
+    "domainPolicy": "domain-agnostic extraction; no document-specific relation schema is hardcoded",
+    "edgePolicy": "edges are human-readable relations between events",
+    "extractorMode": "semantic_event_graph",
+    "model": "deepseek-v4-pro",
+    "module": "HeadDiscomfortLayeredGraph",
+    "nodePolicy": "nodes are human-readable events, states, actions, conditions, decisions, or outcomes",
+    "pdfFile": null,
+    "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean"
+  },
+  "nodes": [
+    {
+      "description": "Initial patient complaint of head discomfort accompanied by mild nausea.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "input_head_discomfort_with_nausea",
+      "label": "User reports head discomfort with mild nausea",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "User reports head discomfort with mild nausea"
+    },
+    {
+      "description": "The presenting complaint is predominantly a headache.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "focus_mainly_headache",
+      "label": "Main complaint is headache",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Main complaint is headache"
+    },
+    {
+      "description": "The presenting complaint is predominantly dizziness or a sensation of room-spinning vertigo.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "focus_dizziness_or_vertigo",
+      "label": "Main complaint is dizziness or room-spinning vertigo",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Main complaint is dizziness or room-spinning vertigo"
+    },
+    {
+      "description": "The nature of the complaint is not well-defined but the patient has a strong sense that something is wrong.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "focus_unclear_but_concerning",
+      "label": "Complaint is unclear but feels obviously wrong",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Complaint is unclear but feels obviously wrong"
+    },
+    {
+      "description": "A symptom that is sudden, severe, or represents a pattern the patient has never experienced before.",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "event_sudden_severe_or_never_before",
+      "label": "Sudden severe symptom or never-before pattern",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Sudden severe symptom or never-before pattern"
+    },
+    {
+      "description": "Presence of any neurologic deficit or visual disturbance.",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "event_neurologic_or_visual_abnormality",
+      "label": "Neurologic or visual abnormality",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Neurologic or visual abnormality"
+    },
+    {
+      "description": "A systemic signal such as fever, infection, head trauma, or a pattern of persistence that may indicate urgency or non-urgency.",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "event_systemic_trauma_or_course_signal",
+      "label": "Fever, infection, head trauma, persistent course, or low-risk course signal",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Fever, infection, head trauma, persistent course, or low-risk course signal"
+    },
+    {
+      "description": "A clinical feature that suggests immediate danger (e.g., acute onset).",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "course_acute_danger_feature",
+      "label": "Acute danger feature is present",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Acute danger feature is present"
+    },
+    {
+      "description": "A pattern of persistence or recurrence that lacks an overt emergency signal.",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "course_persistent_no_emergency_feature",
+      "label": "Persistent or recurrent feature is present, without an immediate emergency feature",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Persistent or recurrent feature is present, without an immediate emergency feature"
+    },
+    {
+      "description": "A clinical feature that is mild, stable, and shows evidence of improvement.",
+      "displayByDefault": true,
+      "eventType": "state",
+      "id": "course_mild_stable_improving_feature",
+      "label": "Mild, stable, and improving feature is present",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Mild, stable, and improving feature is present"
+    },
+    {
+      "description": "A diagnostic hypothesis of a vascular event or intracranial bleeding.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "diagnosis_vascular_or_intracranial_bleeding_possible",
+      "label": "Vascular or intracranial bleeding diagnosis is possible",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Vascular or intracranial bleeding diagnosis is possible"
+    },
+    {
+      "description": "A diagnostic hypothesis of a central nervous system infection or head injury.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "diagnosis_central_infection_or_head_injury_possible",
+      "label": "Central infection or head injury diagnosis is possible",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Central infection or head injury diagnosis is possible"
+    },
+    {
+      "description": "A diagnostic hypothesis of a common, non-acute cause of headache or dizziness.",
+      "displayByDefault": true,
+      "eventType": "condition",
+      "id": "diagnosis_common_non_acute_headache_dizziness_possible",
+      "label": "Common non-acute headache or dizziness diagnosis is possible",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Common non-acute headache or dizziness diagnosis is possible"
+    },
+    {
+      "description": "The clinical decision that the situation requires emergency care.",
+      "displayByDefault": true,
+      "eventType": "decision",
+      "id": "decision_emergency",
+      "label": "Emergency",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Emergency"
+    },
+    {
+      "description": "The clinical decision that the situation is urgent but does not require immediate emergency intervention.",
+      "displayByDefault": true,
+      "eventType": "decision",
+      "id": "decision_priority",
+      "label": "Priority or urgent but not immediate emergency",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Priority or urgent but not immediate emergency"
+    },
+    {
+      "description": "The clinical decision that the situation is non-urgent.",
+      "displayByDefault": true,
+      "eventType": "decision",
+      "id": "decision_non_urgent",
+      "label": "Non-urgent",
+      "module": "HeadDiscomfortLayeredGraph",
+      "nodeKind": "event",
+      "probabilityTarget": true,
+      "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/user_intent_graph/pipeline_out/head_discomfort_toy/HeadDiscomfortLayeredGraph.lean",
+      "sourceText": "Non-urgent"
+    }
+  ]
+}

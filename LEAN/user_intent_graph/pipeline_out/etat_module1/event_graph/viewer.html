@@ -1,0 +1,1866 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Event Graph</title>
+  <style>
+    :root {
+      --bg: #f6f7f5;
+      --panel: #ffffff;
+      --ink: #1d2528;
+      --muted: #657174;
+      --line: #d9dedb;
+      --accent: #0f766e;
+      --accent-2: #9a5b13;
+      --danger: #bd3f32;
+      --logic: #7250a8;
+      --shadow: 0 10px 30px rgba(25, 31, 32, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--bg);
+      font: 13px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-rows: 54px minmax(0, 1fr);
+    }
+
+    .toolbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: rgba(255, 255, 255, 0.94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      z-index: 5;
+    }
+
+    .brand {
+      font-weight: 720;
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+
+    .stat {
+      color: var(--muted);
+      white-space: nowrap;
+      margin-right: 10px;
+    }
+
+    input, select, button {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 0 10px;
+      font: inherit;
+    }
+
+    input {
+      width: min(330px, 26vw);
+      min-width: 170px;
+    }
+
+    select { min-width: 128px; }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    button:hover, input:focus, select:focus {
+      border-color: #97a6a3;
+      outline: none;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      white-space: nowrap;
+    }
+
+    .toggle input {
+      width: 15px;
+      min-width: 15px;
+      height: 15px;
+      padding: 0;
+    }
+
+    .stage {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      background:
+        linear-gradient(90deg, rgba(29, 37, 40, 0.055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(29, 37, 40, 0.055) 1px, transparent 1px),
+        #f7f8f4;
+      background-size: 28px 28px;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      user-select: none;
+    }
+
+    svg.dragging { cursor: grabbing; }
+
+    .edge {
+      stroke-linecap: round;
+      opacity: 0.48;
+      cursor: pointer;
+      pointer-events: stroke;
+    }
+
+    .edge.hidden, .node.hidden, .label.hidden, .edge-label.hidden { display: none; }
+    .edge-hit {
+      stroke: rgba(0, 0, 0, 0);
+      stroke-width: 12px;
+      cursor: pointer;
+      pointer-events: stroke;
+    }
+    .edge-hit.hidden { display: none; }
+
+    .edge.hard { stroke: #6f7c80; }
+    .edge.structure { stroke: #6f7c80; opacity: 0.58; }
+    .edge.source { stroke: var(--accent); opacity: 0.58; }
+    .edge.logic { stroke: var(--logic); }
+    .edge.domain { stroke: var(--danger); opacity: 0.72; }
+    .edge.semantic { stroke: #2b7a78; opacity: 0.74; }
+
+    .edge.active { opacity: 0.96; stroke-width: 2.8px; }
+
+    .node circle {
+      stroke: #fff;
+      stroke-width: 1.8px;
+      filter: drop-shadow(0 2px 3px rgba(18, 23, 25, 0.22));
+    }
+
+    .node.declaration circle { fill: #276f73; }
+    .node.event circle { fill: #2f7a43; }
+    .node.event-condition circle { fill: #1f6f8b; }
+    .node.event-state circle { fill: #2f7a43; }
+    .node.event-action circle { fill: #9a5b13; }
+    .node.event-decision circle { fill: #7250a8; }
+    .node.event-outcome circle { fill: #bd3f32; }
+    .node.event-rule circle { fill: #5d6470; }
+    .node.event-evidence circle { fill: #697276; }
+    .node.event_object circle { fill: #276f73; }
+    .node.object-constructor circle { fill: #4f7a3d; }
+    .node.object-field circle { fill: #b36b00; }
+    .node.object-theorem circle,
+    .node.object-lemma circle,
+    .node.object-example circle { fill: #7250a8; }
+    .node.projection circle { fill: #b36b00; }
+    .node.prop_expr circle { fill: #7250a8; }
+    .node.domain_event circle { fill: #2f7a43; }
+    .node.semantic-requirement circle { fill: #7250a8; }
+    .node.semantic-decision_option circle { fill: #9a5b13; }
+    .node.semantic-context_condition circle { fill: #1f6f8b; }
+    .node.semantic-state_event circle { fill: #2f7a43; }
+    .node.semantic-diagnosis_hypothesis circle { fill: #bd3f32; }
+    .node.semantic-evidence_case circle { fill: #697276; }
+    .node.module circle { fill: #697276; }
+
+    .node.dim circle, .edge.dim { opacity: 0.16; }
+    .edge-label.dim { opacity: 0.18; }
+    .node.active circle { stroke: #1b1f20; stroke-width: 2.6px; }
+
+    .label {
+      font-size: 11px;
+      fill: #20282a;
+      paint-order: stroke;
+      stroke: rgba(247, 248, 244, 0.9);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .edge-label {
+      font-size: 10px;
+      font-weight: 650;
+      fill: #355052;
+      paint-order: stroke;
+      stroke: rgba(247, 248, 244, 0.96);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+    }
+
+    .panel-inner { padding: 16px; }
+
+    .panel h1 {
+      font-size: 17px;
+      line-height: 1.2;
+      margin: 0 0 4px;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .panel .sub {
+      color: var(--muted);
+      margin-bottom: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 7px 10px;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .key { color: var(--muted); }
+    .val { overflow-wrap: anywhere; }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 720;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 16px 0 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pill {
+      max-width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #fbfbfa;
+      overflow-wrap: anywhere;
+      cursor: pointer;
+    }
+
+    .pill:hover { border-color: #9aa6a2; }
+
+    .source-loc {
+      color: var(--muted);
+      font-size: 12px;
+      margin: -2px 0 7px;
+      overflow-wrap: anywhere;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #f1f2ef;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    .legend {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      max-width: calc(100% - 24px);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .dot.declaration { background: #276f73; }
+    .dot.event { background: #2f7a43; }
+    .dot.condition { background: #1f6f8b; }
+    .dot.action { background: #9a5b13; }
+    .dot.decision { background: #7250a8; }
+    .dot.outcome { background: #bd3f32; }
+    .dot.relation { background: #2b7a78; }
+    .dot.event_object { background: #276f73; }
+    .dot.projection { background: #b36b00; }
+    .dot.prop_expr { background: #7250a8; }
+    .dot.domain_event { background: #2f7a43; }
+    .dot.requirement { background: #7250a8; }
+    .dot.decision_option { background: #9a5b13; }
+    .dot.context_condition { background: #1f6f8b; }
+    .dot.diagnosis_hypothesis { background: #bd3f32; }
+    .dot.hard { background: #6f7c80; }
+    .dot.structure { background: #6f7c80; }
+    .dot.source { background: var(--accent); }
+    .dot.logic { background: var(--logic); }
+    .dot.domain { background: var(--danger); }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr) 300px;
+      }
+      .toolbar {
+        flex-wrap: wrap;
+        min-height: 54px;
+      }
+      input { width: 100%; }
+      .panel {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <div class="brand">Semantic Event Graph</div>
+      <div class="stat" id="stats"></div>
+      <input id="search" type="search" placeholder="Search events">
+      <select id="nodeKind"></select>
+      <select id="edgeLayer"></select>
+      <label class="toggle"><input id="domainOnly" type="checkbox"> Main events</label>
+      <label class="toggle"><input id="showEvidence" type="checkbox"> Evidence</label>
+      <button id="backBtn" type="button">Back</button>
+      <button id="homeBtn" type="button">Home</button>
+    </div>
+
+    <main class="stage">
+      <svg id="graph" aria-label="Semantic event graph"></svg>
+      <div class="legend">
+        <span class="legend-item"><span class="dot event"></span>Event</span>
+        <span class="legend-item"><span class="dot condition"></span>Condition</span>
+        <span class="legend-item"><span class="dot action"></span>Action</span>
+        <span class="legend-item"><span class="dot decision"></span>Decision</span>
+        <span class="legend-item"><span class="dot outcome"></span>Outcome</span>
+        <span class="legend-item"><span class="dot relation"></span>Relation</span>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <div class="panel-inner" id="details"></div>
+    </aside>
+  </div>
+
+  <script id="graph-data" type="application/json">{"edges": [{"confidence": 1.0, "confidenceReason": "Defined in isLethargic.", "description": "If AVPU level is voice, patient is considered lethargic.", "displayByDefault": true, "dst": "is_lethargic", "edgeKind": "indicates", "id": "edge:9f892fc653c7", "label": "AVPU voice indicates lethargic", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "AVPU voice indicates lethargic", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "avpu == AVPULevel.voice", "src": "avpu_voice"}, {"confidence": 1.0, "confidenceReason": "Defined in isComa.", "description": "If AVPU responds to pain, patient is in coma.", "displayByDefault": true, "dst": "is_coma", "edgeKind": "indicates", "id": "edge:598718ec7763", "label": "AVPU pain indicates coma", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "AVPU pain indicates coma", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "avpu == AVPULevel.pain", "src": "avpu_pain"}, {"confidence": 1.0, "confidenceReason": "Defined in isComa.", "description": "If AVPU is unresponsive, patient is in coma.", "displayByDefault": true, "dst": "is_coma", "edgeKind": "indicates", "id": "edge:145d2e4f83a8", "label": "AVPU unresponsive indicates coma", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "AVPU unresponsive indicates coma", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "avpu == AVPULevel.unresponsive", "src": "avpu_unresponsive"}, {"confidence": 1.0, "confidenceReason": "Part of hasCirculatoryShock condition.", "description": "Cold hands are required for circulatory shock assessment.", "displayByDefault": true, "dst": "circulatory_shock", "edgeKind": "requires", "id": "edge:abc664617229", "label": "cold hands contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "cold hands contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "! a.warmHands", "src": "cold_hands"}, {"confidence": 1.0, "confidenceReason": "Part of hasCirculatoryShock.", "description": "Capillary refill >3sec required for circulatory shock.", "displayByDefault": true, "dst": "circulatory_shock", "edgeKind": "requires", "id": "edge:e8ab8931601b", "label": "delayed capillary refill", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "delayed capillary refill", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.capillaryRefillOver3sec", "src": "capillary_refill_over_3sec"}, {"confidence": 1.0, "confidenceReason": "Part of hasCirculatoryShock.", "description": "Weak and fast pulse required for circulatory shock.", "displayByDefault": true, "dst": "circulatory_shock", "edgeKind": "requires", "id": "edge:ee4aa0157653", "label": "weak fast pulse", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "weak fast pulse", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.weakAndFastPulse", "src": "weak_and_fast_pulse"}, {"confidence": 1.0, "confidenceReason": "Defined in fluidLossConcern.", "description": "Diarrhea is one cause of fluid loss concern.", "displayByDefault": true, "dst": "fluid_loss_concern", "edgeKind": "causes", "id": "edge:1bf397c47699", "label": "diarrhea causes fluid loss concern", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "causes", "relationLabel": "diarrhea causes fluid loss concern", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.diarrhea", "src": "diarrhea"}, {"confidence": 1.0, "confidenceReason": "Defined in fluidLossConcern.", "description": "Vomiting causes fluid loss concern.", "displayByDefault": true, "dst": "fluid_loss_concern", "edgeKind": "causes", "id": "edge:2b218c759621", "label": "vomiting causes fluid loss concern", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "causes", "relationLabel": "vomiting causes fluid loss concern", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.vomiting", "src": "vomiting"}, {"confidence": 1.0, "confidenceReason": "Defined in fluidLossConcern.", "description": "Drinking poorly indicates fluid loss concern.", "displayByDefault": true, "dst": "fluid_loss_concern", "edgeKind": "causes", "id": "edge:331c5d88bcd5", "label": "drinking poorly causes fluid loss concern", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "causes", "relationLabel": "drinking poorly causes fluid loss concern", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.drinkingPoorly", "src": "drinking_poorly"}, {"confidence": 1.0, "confidenceReason": "Defined in fluidLossConcern.", "description": "Repeated vomiting indicates fluid loss concern.", "displayByDefault": true, "dst": "fluid_loss_concern", "edgeKind": "causes", "id": "edge:23d0356228c7", "label": "repeated vomiting causes fluid loss concern", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "causes", "relationLabel": "repeated vomiting causes fluid loss concern", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.repeatedVomiting", "src": "repeated_vomiting"}, {"confidence": 1.0, "confidenceReason": "Used in dehydrationSignCount.", "description": "Lethargic patient is considered lethargic or unconscious.", "displayByDefault": true, "dst": "lethargic_or_unconscious", "edgeKind": "includes", "id": "edge:84da3dd02f9a", "label": "lethargic contributes to lethargic or unconscious", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "includes", "relationLabel": "lethargic contributes to lethargic or unconscious", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "isLethargic a.avpu", "src": "is_lethargic"}, {"confidence": 1.0, "confidenceReason": "Used in dehydrationSignCount.", "description": "Comatose patient is considered lethargic or unconscious.", "displayByDefault": true, "dst": "lethargic_or_unconscious", "edgeKind": "includes", "id": "edge:b166b83e3e63", "label": "coma contributes to lethargic or unconscious", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "includes", "relationLabel": "coma contributes to lethargic or unconscious", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "isComa a.avpu", "src": "is_coma"}, {"confidence": 1.0, "confidenceReason": "Used in severeDehydrationPresent via dehydrationSignCount.", "description": "Contributes to the dehydration sign count; if total >=2, severe dehydration is indicated.", "displayByDefault": true, "dst": "severe_dehydration_present", "edgeKind": "indicates", "id": "edge:69029c2bbd17", "label": "lethargic/unconscious is a dehydration sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "lethargic/unconscious is a dehydration sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount includes lethargicOrUnconscious", "src": "lethargic_or_unconscious"}, {"confidence": 1.0, "confidenceReason": "Used in severeDehydrationPresent.", "description": "Contributes to dehydration sign count; if total >=2, severe dehydration.", "displayByDefault": true, "dst": "severe_dehydration_present", "edgeKind": "indicates", "id": "edge:d8cf568c6b89", "label": "sunken eyes is a dehydration sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "sunken eyes is a dehydration sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount includes sunkenEyes", "src": "sunken_eyes"}, {"confidence": 1.0, "confidenceReason": "Used in severeDehydrationPresent.", "description": "Contributes to dehydration sign count; if total >=2, severe dehydration.", "displayByDefault": true, "dst": "severe_dehydration_present", "edgeKind": "indicates", "id": "edge:b4cde5ea880a", "label": "slow skin pinch is a dehydration sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "indicates", "relationLabel": "slow skin pinch is a dehydration sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount includes slowSkinPinch", "src": "slow_skin_pinch"}, {"confidence": 1.0, "confidenceReason": "Part of moderateDehydrationPresent.", "description": "Fluid loss concern is necessary for moderate dehydration.", "displayByDefault": true, "dst": "moderate_dehydration_present", "edgeKind": "requires", "id": "edge:39fa4d2c3496", "label": "fluid loss concern required", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "fluid loss concern required", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "fluidLossConcern a", "src": "fluid_loss_concern"}, {"confidence": 1.0, "confidenceReason": "Part of moderateDehydrationPresent.", "description": "Severe dehydration must be absent for moderate dehydration.", "displayByDefault": true, "dst": "moderate_dehydration_present", "edgeKind": "requires", "id": "edge:c844b515a782", "label": "absence of severe dehydration", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "absence of severe dehydration", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "!severeDehydrationPresent a", "src": "no_severe_dehydration"}, {"confidence": 0.9, "confidenceReason": "Part of moderateDehydrationPresent threshold.", "description": "If dehydration sign count is exactly 1, moderate dehydration is indicated.", "displayByDefault": true, "dst": "moderate_dehydration_present", "edgeKind": "requires", "id": "edge:df7bc31a1aac", "label": "count=1 triggers moderate dehydration", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "count=1 triggers moderate dehydration", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount a == 1", "src": "dehydration_sign_count_eq_1"}, {"confidence": 1.0, "confidenceReason": "Part of moderateDehydrationPresent OR condition.", "description": "Drinking poorly alone can trigger moderate dehydration.", "displayByDefault": true, "dst": "moderate_dehydration_present", "edgeKind": "requires", "id": "edge:2ed7f2f4c220", "label": "drinking poorly triggers moderate dehydration", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "drinking poorly triggers moderate dehydration", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "drinkingPoorly a", "src": "drinking_poorly"}, {"confidence": 1.0, "confidenceReason": "Part of moderateDehydrationPresent OR condition.", "description": "Repeated vomiting alone can trigger moderate dehydration.", "displayByDefault": true, "dst": "moderate_dehydration_present", "edgeKind": "requires", "id": "edge:ddcdd697afaa", "label": "repeated vomiting triggers moderate dehydration", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "repeated vomiting triggers moderate dehydration", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "repeatedVomiting a", "src": "repeated_vomiting"}, {"confidence": 0.9, "confidenceReason": "Contributes to the count used in the threshold.", "description": "This sign affects the dehydration sign count.", "displayByDefault": true, "dst": "dehydration_sign_count_eq_1", "edgeKind": "other", "id": "edge:11bf013d7a11", "label": "affects dehydration count", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "affects dehydration count", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount", "src": "lethargic_or_unconscious"}, {"confidence": 0.9, "confidenceReason": "Contributes to the count.", "description": "This sign affects the dehydration sign count.", "displayByDefault": true, "dst": "dehydration_sign_count_eq_1", "edgeKind": "other", "id": "edge:013efdcf4dd2", "label": "affects dehydration count", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "affects dehydration count", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount", "src": "sunken_eyes"}, {"confidence": 0.9, "confidenceReason": "Contributes to the count.", "description": "This sign affects the dehydration sign count.", "displayByDefault": true, "dst": "dehydration_sign_count_eq_1", "edgeKind": "other", "id": "edge:5ca551945e74", "label": "affects dehydration count", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "affects dehydration count", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount", "src": "slow_skin_pinch"}, {"confidence": 1.0, "confidenceReason": "Part of condition in detectedPrioritySigns.", "description": "Presence of respiratory distress is required for non-severe respiratory distress.", "displayByDefault": true, "dst": "non_severe_respiratory_distress", "edgeKind": "requires", "id": "edge:1dfb2731f85a", "label": "respiratory distress present", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "respiratory distress present", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.respiratoryDistress", "src": "respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "Part of condition in detectedPrioritySigns.", "description": "Absence of severe respiratory distress required.", "displayByDefault": true, "dst": "non_severe_respiratory_distress", "edgeKind": "requires", "id": "edge:b8d4775cef90", "label": "not severe respiratory distress", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "not severe respiratory distress", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "! a.severeRespiratoryDistress", "src": "no_severe_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Airway obstruction is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_airway_obstruction", "edgeKind": "classifies_as", "id": "edge:f3d7b4191b56", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.airwayObstructed then [EmergencySign.airwayObstruction]", "src": "airway_obstructed"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Central cyanosis is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_central_cyanosis", "edgeKind": "classifies_as", "id": "edge:d34f1540c17c", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.centralCyanosis then [EmergencySign.centralCyanosis]", "src": "central_cyanosis"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Not breathing is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_not_breathing", "edgeKind": "classifies_as", "id": "edge:116deb834df8", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.notBreathing then [EmergencySign.notBreathing]", "src": "not_breathing"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Severe respiratory distress is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_severe_respiratory_distress", "edgeKind": "classifies_as", "id": "edge:8236d8f26233", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severeRespiratoryDistress then [EmergencySign.severeRespiratoryDistress]", "src": "severe_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Circulatory shock is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_circulatory_shock", "edgeKind": "classifies_as", "id": "edge:563d99435674", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if hasCirculatoryShock a then [EmergencySign.circulatoryShock]", "src": "circulatory_shock"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Coma is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_coma", "edgeKind": "classifies_as", "id": "edge:920960b05c85", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if isComa a.avpu then [EmergencySign.coma]", "src": "is_coma"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Convulsing is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_convulsing", "edgeKind": "classifies_as", "id": "edge:6341722265ae", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.convulsing then [EmergencySign.convulsing]", "src": "convulsing"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Severe dehydration is an emergency sign.", "displayByDefault": true, "dst": "emergency_sign_severe_dehydration", "edgeKind": "classifies_as", "id": "edge:d9d05b791583", "label": "classifies as emergency sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as emergency sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if severeDehydrationPresent a then [EmergencySign.severeDehydration]", "src": "severe_dehydration_present"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Age <2 months is a priority sign (tiny baby).", "displayByDefault": true, "dst": "priority_sign_tiny_baby", "edgeKind": "classifies_as", "id": "edge:b23c353ccd90", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.ageMonths < 2 then [PrioritySign.tinyBaby]", "src": "age_less_than_2_months"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Feeling very hot is a priority sign.", "displayByDefault": true, "dst": "priority_sign_very_hot", "edgeKind": "classifies_as", "id": "edge:548adfd23134", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.feelsVeryHot then [PrioritySign.veryHot]", "src": "feels_very_hot"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Severe trauma or surgical condition is a priority sign.", "displayByDefault": true, "dst": "priority_sign_trauma", "edgeKind": "classifies_as", "id": "edge:64741aebd5f3", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severeTraumaOrSurgical then [PrioritySign.trauma]", "src": "severe_trauma_or_surgical"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Severe pallor is a priority sign.", "displayByDefault": true, "dst": "priority_sign_severe_pallor", "edgeKind": "classifies_as", "id": "edge:56e99b37944e", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severePallor then [PrioritySign.severePallor]", "src": "severe_pallor"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Poisoning is a priority sign.", "displayByDefault": true, "dst": "priority_sign_poisoning", "edgeKind": "classifies_as", "id": "edge:28f787e1156b", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.poisoning then [PrioritySign.poisoning]", "src": "poisoning"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Severe pain is a priority sign.", "displayByDefault": true, "dst": "priority_sign_severe_pain", "edgeKind": "classifies_as", "id": "edge:bc4da8479711", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severePain then [PrioritySign.severePain]", "src": "severe_pain"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Restless, irritable, or lethargic is a priority sign.", "displayByDefault": true, "dst": "priority_sign_restless_irritable_lethargic", "edgeKind": "classifies_as", "id": "edge:23462712cdef", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.restlessIrritableOrLethargic then [PrioritySign.restlessIrritableOrLethargic]", "src": "restless_irritable_or_lethargic"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Urgent referral is a priority sign.", "displayByDefault": true, "dst": "priority_sign_urgent_referral", "edgeKind": "classifies_as", "id": "edge:a8a0d5a770a2", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.urgentReferral then [PrioritySign.urgentReferral]", "src": "urgent_referral"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Severe wasting is a priority sign.", "displayByDefault": true, "dst": "priority_sign_severe_wasting", "edgeKind": "classifies_as", "id": "edge:6bdd7d4b1092", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severeWasting then [PrioritySign.severeWasting]", "src": "severe_wasting"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Oedema of both feet is a priority sign.", "displayByDefault": true, "dst": "priority_sign_oedema_both_feet", "edgeKind": "classifies_as", "id": "edge:6ed9fa005f65", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.oedemaBothFeet then [PrioritySign.oedemaBothFeet]", "src": "oedema_both_feet"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Major burn is a priority sign.", "displayByDefault": true, "dst": "priority_sign_major_burn", "edgeKind": "classifies_as", "id": "edge:79a33e25175d", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.majorBurn then [PrioritySign.majorBurn]", "src": "major_burn"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Moderate dehydration is a priority sign.", "displayByDefault": true, "dst": "priority_sign_moderate_dehydration", "edgeKind": "classifies_as", "id": "edge:0556ecefce2f", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if moderateDehydrationPresent a then [PrioritySign.moderateDehydration]", "src": "moderate_dehydration_present"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Non‑severe respiratory distress is a priority sign.", "displayByDefault": true, "dst": "priority_sign_respiratory_distress", "edgeKind": "classifies_as", "id": "edge:56006b7231ba", "label": "classifies as priority sign", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "classifies_as", "relationLabel": "classifies as priority sign", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.respiratoryDistress && ! a.severeRespiratoryDistress then [PrioritySign.respiratoryDistress]", "src": "non_severe_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "If the list is non‑empty, emergency signs are detected.", "description": "This sign, when present, causes emergency signs to be detected.", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:f2d4e2ec842e", "label": "contributes to emergency signs detection", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes to emergency signs detection", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_airway_obstruction"}, {"confidence": 1.0, "confidenceReason": "Same logic.", "description": "This sign contributes to detection.", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:c59fd5a034bb", "label": "contributes to emergency signs detection", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes to emergency signs detection", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_central_cyanosis"}, {"confidence": 1.0, "confidenceReason": "Same.", "description": "Contributes.", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:505a303c6d35", "label": "contributes to emergency signs detection", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes to emergency signs detection", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_not_breathing"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:7d62a7d3596f", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_severe_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:5ca53090758b", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_circulatory_shock"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:80265764bc46", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_coma"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:1a152978b3fd", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_convulsing"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "emergency_signs_detected", "edgeKind": "other", "id": "edge:8c7a58c2e19a", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergencySignList concatenation", "src": "emergency_sign_severe_dehydration"}, {"confidence": 1.0, "confidenceReason": "If the list is non‑empty, priority signs detected.", "description": "Presence of this sign means priority signs are detected.", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:60a4e5909a7b", "label": "contributes to priority detection", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes to priority detection", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_tiny_baby"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:232096837786", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_very_hot"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:21ed50391d71", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_trauma"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:9396694c5eb5", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_severe_pallor"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:03258954b477", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_poisoning"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:d7ea97c4fb48", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_severe_pain"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:6072952d70f6", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_restless_irritable_lethargic"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:08557284f57e", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_urgent_referral"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:e8826c747f37", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_severe_wasting"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:bb15afcd7eab", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_oedema_both_feet"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:b05c3f5de6e1", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_major_burn"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:5a8d4dec1e56", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "", "description": "", "displayByDefault": true, "dst": "priority_signs_detected", "edgeKind": "other", "id": "edge:31c27e3261b1", "label": "contributes", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "other", "relationLabel": "contributes", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "detectedPrioritySigns concatenation", "src": "priority_sign_moderate_dehydration"}, {"confidence": 1.0, "confidenceReason": "From triageDecision.", "description": "If any emergency sign is detected, patient is assigned emergency category.", "displayByDefault": true, "dst": "assign_emergency_category", "edgeKind": "leads_to", "id": "edge:0ae4a8a6f25c", "label": "presence of emergency signs leads to emergency category", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "leads_to", "relationLabel": "presence of emergency signs leads to emergency category", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if emergSigns.length > 0 then category := TriageCategory.emergency", "src": "emergency_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From triageDecision.", "description": "If any priority sign is detected (and no emergency signs), assign priority category.", "displayByDefault": true, "dst": "assign_priority_category", "edgeKind": "leads_to", "id": "edge:a120c609491a", "label": "presence of priority signs leads to priority category", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "leads_to", "relationLabel": "presence of priority signs leads to priority category", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if priorSigns.length > 0 then category := TriageCategory.priority", "src": "priority_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From triageDecision and theorem.", "description": "If no emergency or priority signs detected, assign non‑urgent category.", "displayByDefault": true, "dst": "assign_non_urgent_category", "edgeKind": "leads_to", "id": "edge:a6fae4ab998c", "label": "absence of signs leads to non‑urgent category", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "leads_to", "relationLabel": "absence of signs leads to non‑urgent category", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "else category := TriageCategory.nonUrgent; theorem no_signs_implies_non_urgent", "src": "no_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions and theorem.", "description": "When emergency signs are present, call a senior health worker.", "displayByDefault": true, "dst": "call_senior", "edgeKind": "requires", "id": "edge:9b51eb85e1b1", "label": "emergency signs require calling senior health worker", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "emergency signs require calling senior health worker", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if (emergencySignList a).length > 0 then ... [EmergencyAction.callSenior, EmergencyAction.labInvestigations]; theorem emergency_implies_call_senior_and_labs", "src": "emergency_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions and theorem.", "description": "When emergency signs present, carry out emergency lab investigations.", "displayByDefault": true, "dst": "lab_investigations", "edgeKind": "requires", "id": "edge:e1c16fb1a184", "label": "emergency signs require emergency lab investigations", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "emergency signs require emergency lab investigations", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "same as above", "src": "emergency_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From triageDecision and theorem.", "description": "Emergency category patients must be reassessed frequently.", "displayByDefault": true, "dst": "reassess_frequently", "edgeKind": "requires", "id": "edge:ca0fca924242", "label": "emergency signs require frequent reassessment", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "emergency signs require frequent reassessment", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "reassessFrequently := true in emergency branch; theorem emergency_implies_reassess", "src": "emergency_signs_detected"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions base.", "description": "If airway obstructed, start airway management.", "displayByDefault": true, "dst": "start_airway_management", "edgeKind": "requires", "id": "edge:da782c35339b", "label": "airway obstruction requires start airway management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "airway obstruction requires start airway management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.airwayObstructed || ... then [EmergencyAction.startAirwayManagement]", "src": "airway_obstructed"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Central cyanosis triggers airway management.", "displayByDefault": true, "dst": "start_airway_management", "edgeKind": "requires", "id": "edge:5b4410a8cdf8", "label": "central cyanosis requires start airway management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "central cyanosis requires start airway management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if ... || a.centralCyanosis || ... then [EmergencyAction.startAirwayManagement]", "src": "central_cyanosis"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "If not breathing, start airway management.", "displayByDefault": true, "dst": "start_airway_management", "edgeKind": "requires", "id": "edge:5fa08588a92e", "label": "not breathing requires start airway management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "not breathing requires start airway management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if ... || a.notBreathing then [EmergencyAction.startAirwayManagement]", "src": "not_breathing"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Start breathing support if severe respiratory distress present.", "displayByDefault": true, "dst": "start_breathing_support", "edgeKind": "requires", "id": "edge:28a503e4ab31", "label": "severe respiratory distress requires breathing support", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "severe respiratory distress requires breathing support", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.severeRespiratoryDistress then [EmergencyAction.startBreathingSupport]", "src": "severe_respiratory_distress"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Start circulatory support if shock present.", "displayByDefault": true, "dst": "start_circulatory_support", "edgeKind": "requires", "id": "edge:a7ae184ea49e", "label": "circulatory shock requires circulatory support", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "circulatory shock requires circulatory support", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if hasCirculatoryShock a then [EmergencyAction.startCirculatorySupport]", "src": "circulatory_shock"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Manage coma if patient is in coma.", "displayByDefault": true, "dst": "manage_coma", "edgeKind": "requires", "id": "edge:f33c325e281f", "label": "coma requires coma management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "coma requires coma management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if isComa a.avpu then [EmergencyAction.manageComa]", "src": "is_coma"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Manage convulsions if patient is convulsing.", "displayByDefault": true, "dst": "manage_convulsion", "edgeKind": "requires", "id": "edge:d0b592f0f9a1", "label": "convulsing requires convulsion management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "convulsing requires convulsion management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if a.convulsing then [EmergencyAction.manageConvulsion]", "src": "convulsing"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Manage dehydration if severe dehydration present.", "displayByDefault": true, "dst": "manage_dehydration", "edgeKind": "requires", "id": "edge:f9b7a69bad7a", "label": "severe dehydration requires dehydration management", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "requires", "relationLabel": "severe dehydration requires dehydration management", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "if severeDehydrationPresent a then [EmergencyAction.manageDehydration]", "src": "severe_dehydration_present"}, {"confidence": 1.0, "confidenceReason": "Supported by PDF context.", "description": "Non‑urgent patients can wait their turn in the queue.", "displayByDefault": true, "dst": "patient_waits_in_queue", "edgeKind": "leads_to", "id": "edge:6e79747fcd02", "label": "non‑urgent patients wait in queue", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "leads_to", "relationLabel": "non‑urgent patients wait in queue", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PDF: 'can wait their turn in the queue'", "src": "assign_non_urgent_category"}, {"confidence": 1.0, "confidenceReason": "Supported by PDF context.", "description": "Priority patients are to be placed at the front of the queue.", "displayByDefault": true, "dst": "patient_placed_at_front_of_queue", "edgeKind": "leads_to", "id": "edge:410df6aff0a6", "label": "priority patients placed at front of queue", "layer": "semantic", "module": "GeneratedTriageSafety", "probabilityTarget": true, "relationKind": "leads_to", "relationLabel": "priority patients placed at front of queue", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PDF: 'should be given priority in the queue'", "src": "assign_priority_category"}], "events": [{"event": "semantic_event_node_recorded", "label": "airway is obstructed", "nodeId": "airway_obstructed"}, {"event": "semantic_event_node_recorded", "label": "central cyanosis present", "nodeId": "central_cyanosis"}, {"event": "semantic_event_node_recorded", "label": "patient is not breathing", "nodeId": "not_breathing"}, {"event": "semantic_event_node_recorded", "label": "severe respiratory distress", "nodeId": "severe_respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "patient has cold hands", "nodeId": "cold_hands"}, {"event": "semantic_event_node_recorded", "label": "capillary refill > 3 seconds", "nodeId": "capillary_refill_over_3sec"}, {"event": "semantic_event_node_recorded", "label": "pulse is weak and fast", "nodeId": "weak_and_fast_pulse"}, {"event": "semantic_event_node_recorded", "label": "AVPU level: alert", "nodeId": "avpu_alert"}, {"event": "semantic_event_node_recorded", "label": "responds to voice", "nodeId": "avpu_voice"}, {"event": "semantic_event_node_recorded", "label": "responds to pain", "nodeId": "avpu_pain"}, {"event": "semantic_event_node_recorded", "label": "unresponsive", "nodeId": "avpu_unresponsive"}, {"event": "semantic_event_node_recorded", "label": "patient is convulsing", "nodeId": "convulsing"}, {"event": "semantic_event_node_recorded", "label": "sunken eyes", "nodeId": "sunken_eyes"}, {"event": "semantic_event_node_recorded", "label": "slow skin pinch", "nodeId": "slow_skin_pinch"}, {"event": "semantic_event_node_recorded", "label": "has diarrhea", "nodeId": "diarrhea"}, {"event": "semantic_event_node_recorded", "label": "has vomiting", "nodeId": "vomiting"}, {"event": "semantic_event_node_recorded", "label": "drinking poorly", "nodeId": "drinking_poorly"}, {"event": "semantic_event_node_recorded", "label": "repeated vomiting", "nodeId": "repeated_vomiting"}, {"event": "semantic_event_node_recorded", "label": "feels very hot", "nodeId": "feels_very_hot"}, {"event": "semantic_event_node_recorded", "label": "severe trauma or surgical condition", "nodeId": "severe_trauma_or_surgical"}, {"event": "semantic_event_node_recorded", "label": "severe pallor", "nodeId": "severe_pallor"}, {"event": "semantic_event_node_recorded", "label": "poisoning", "nodeId": "poisoning"}, {"event": "semantic_event_node_recorded", "label": "severe pain", "nodeId": "severe_pain"}, {"event": "semantic_event_node_recorded", "label": "restless, irritable, or lethargic", "nodeId": "restless_irritable_or_lethargic"}, {"event": "semantic_event_node_recorded", "label": "urgent referral", "nodeId": "urgent_referral"}, {"event": "semantic_event_node_recorded", "label": "severe wasting", "nodeId": "severe_wasting"}, {"event": "semantic_event_node_recorded", "label": "oedema of both feet", "nodeId": "oedema_both_feet"}, {"event": "semantic_event_node_recorded", "label": "major burn", "nodeId": "major_burn"}, {"event": "semantic_event_node_recorded", "label": "respiratory distress", "nodeId": "respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "patient age is less than 2 months", "nodeId": "age_less_than_2_months"}, {"event": "semantic_event_node_recorded", "label": "patient is lethargic", "nodeId": "is_lethargic"}, {"event": "semantic_event_node_recorded", "label": "patient is in coma", "nodeId": "is_coma"}, {"event": "semantic_event_node_recorded", "label": "circulatory shock present", "nodeId": "circulatory_shock"}, {"event": "semantic_event_node_recorded", "label": "fluid loss concern", "nodeId": "fluid_loss_concern"}, {"event": "semantic_event_node_recorded", "label": "patient is lethargic or unconscious", "nodeId": "lethargic_or_unconscious"}, {"event": "semantic_event_node_recorded", "label": "severe dehydration present", "nodeId": "severe_dehydration_present"}, {"event": "semantic_event_node_recorded", "label": "moderate dehydration present", "nodeId": "moderate_dehydration_present"}, {"event": "semantic_event_node_recorded", "label": "dehydration sign count equals 1", "nodeId": "dehydration_sign_count_eq_1"}, {"event": "semantic_event_node_recorded", "label": "respiratory distress but not severe", "nodeId": "non_severe_respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "no severe dehydration", "nodeId": "no_severe_dehydration"}, {"event": "semantic_event_node_recorded", "label": "no severe respiratory distress", "nodeId": "no_severe_respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: airway obstruction", "nodeId": "emergency_sign_airway_obstruction"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: central cyanosis", "nodeId": "emergency_sign_central_cyanosis"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: not breathing", "nodeId": "emergency_sign_not_breathing"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: severe respiratory distress", "nodeId": "emergency_sign_severe_respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: circulatory shock", "nodeId": "emergency_sign_circulatory_shock"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: coma", "nodeId": "emergency_sign_coma"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: convulsing", "nodeId": "emergency_sign_convulsing"}, {"event": "semantic_event_node_recorded", "label": "emergency sign: severe dehydration", "nodeId": "emergency_sign_severe_dehydration"}, {"event": "semantic_event_node_recorded", "label": "priority sign: tiny baby", "nodeId": "priority_sign_tiny_baby"}, {"event": "semantic_event_node_recorded", "label": "priority sign: very hot", "nodeId": "priority_sign_very_hot"}, {"event": "semantic_event_node_recorded", "label": "priority sign: trauma", "nodeId": "priority_sign_trauma"}, {"event": "semantic_event_node_recorded", "label": "priority sign: severe pallor", "nodeId": "priority_sign_severe_pallor"}, {"event": "semantic_event_node_recorded", "label": "priority sign: poisoning", "nodeId": "priority_sign_poisoning"}, {"event": "semantic_event_node_recorded", "label": "priority sign: severe pain", "nodeId": "priority_sign_severe_pain"}, {"event": "semantic_event_node_recorded", "label": "priority sign: restless, irritable, or lethargic", "nodeId": "priority_sign_restless_irritable_lethargic"}, {"event": "semantic_event_node_recorded", "label": "priority sign: urgent referral", "nodeId": "priority_sign_urgent_referral"}, {"event": "semantic_event_node_recorded", "label": "priority sign: severe wasting", "nodeId": "priority_sign_severe_wasting"}, {"event": "semantic_event_node_recorded", "label": "priority sign: oedema of both feet", "nodeId": "priority_sign_oedema_both_feet"}, {"event": "semantic_event_node_recorded", "label": "priority sign: major burn", "nodeId": "priority_sign_major_burn"}, {"event": "semantic_event_node_recorded", "label": "priority sign: respiratory distress", "nodeId": "priority_sign_respiratory_distress"}, {"event": "semantic_event_node_recorded", "label": "priority sign: moderate dehydration", "nodeId": "priority_sign_moderate_dehydration"}, {"event": "semantic_event_node_recorded", "label": "emergency signs detected", "nodeId": "emergency_signs_detected"}, {"event": "semantic_event_node_recorded", "label": "priority signs detected", "nodeId": "priority_signs_detected"}, {"event": "semantic_event_node_recorded", "label": "no emergency or priority signs detected", "nodeId": "no_signs_detected"}, {"event": "semantic_event_node_recorded", "label": "assign emergency category", "nodeId": "assign_emergency_category"}, {"event": "semantic_event_node_recorded", "label": "assign priority category", "nodeId": "assign_priority_category"}, {"event": "semantic_event_node_recorded", "label": "assign non-urgent category", "nodeId": "assign_non_urgent_category"}, {"event": "semantic_event_node_recorded", "label": "reassess frequently", "nodeId": "reassess_frequently"}, {"event": "semantic_event_node_recorded", "label": "patient can wait in queue", "nodeId": "patient_waits_in_queue"}, {"event": "semantic_event_node_recorded", "label": "patient is placed at front of queue", "nodeId": "patient_placed_at_front_of_queue"}, {"event": "semantic_event_node_recorded", "label": "start airway management", "nodeId": "start_airway_management"}, {"event": "semantic_event_node_recorded", "label": "start breathing support", "nodeId": "start_breathing_support"}, {"event": "semantic_event_node_recorded", "label": "start circulatory support", "nodeId": "start_circulatory_support"}, {"event": "semantic_event_node_recorded", "label": "manage coma", "nodeId": "manage_coma"}, {"event": "semantic_event_node_recorded", "label": "manage convulsion", "nodeId": "manage_convulsion"}, {"event": "semantic_event_node_recorded", "label": "manage dehydration", "nodeId": "manage_dehydration"}, {"event": "semantic_event_node_recorded", "label": "call senior health worker", "nodeId": "call_senior"}, {"event": "semantic_event_node_recorded", "label": "carry out emergency laboratory investigations", "nodeId": "lab_investigations"}, {"dst": "is_lethargic", "edgeId": "edge:9f892fc653c7", "event": "semantic_event_edge_recorded", "relationLabel": "AVPU voice indicates lethargic", "src": "avpu_voice"}, {"dst": "is_coma", "edgeId": "edge:598718ec7763", "event": "semantic_event_edge_recorded", "relationLabel": "AVPU pain indicates coma", "src": "avpu_pain"}, {"dst": "is_coma", "edgeId": "edge:145d2e4f83a8", "event": "semantic_event_edge_recorded", "relationLabel": "AVPU unresponsive indicates coma", "src": "avpu_unresponsive"}, {"dst": "circulatory_shock", "edgeId": "edge:abc664617229", "event": "semantic_event_edge_recorded", "relationLabel": "cold hands contributes", "src": "cold_hands"}, {"dst": "circulatory_shock", "edgeId": "edge:e8ab8931601b", "event": "semantic_event_edge_recorded", "relationLabel": "delayed capillary refill", "src": "capillary_refill_over_3sec"}, {"dst": "circulatory_shock", "edgeId": "edge:ee4aa0157653", "event": "semantic_event_edge_recorded", "relationLabel": "weak fast pulse", "src": "weak_and_fast_pulse"}, {"dst": "fluid_loss_concern", "edgeId": "edge:1bf397c47699", "event": "semantic_event_edge_recorded", "relationLabel": "diarrhea causes fluid loss concern", "src": "diarrhea"}, {"dst": "fluid_loss_concern", "edgeId": "edge:2b218c759621", "event": "semantic_event_edge_recorded", "relationLabel": "vomiting causes fluid loss concern", "src": "vomiting"}, {"dst": "fluid_loss_concern", "edgeId": "edge:331c5d88bcd5", "event": "semantic_event_edge_recorded", "relationLabel": "drinking poorly causes fluid loss concern", "src": "drinking_poorly"}, {"dst": "fluid_loss_concern", "edgeId": "edge:23d0356228c7", "event": "semantic_event_edge_recorded", "relationLabel": "repeated vomiting causes fluid loss concern", "src": "repeated_vomiting"}, {"dst": "lethargic_or_unconscious", "edgeId": "edge:84da3dd02f9a", "event": "semantic_event_edge_recorded", "relationLabel": "lethargic contributes to lethargic or unconscious", "src": "is_lethargic"}, {"dst": "lethargic_or_unconscious", "edgeId": "edge:b166b83e3e63", "event": "semantic_event_edge_recorded", "relationLabel": "coma contributes to lethargic or unconscious", "src": "is_coma"}, {"dst": "severe_dehydration_present", "edgeId": "edge:69029c2bbd17", "event": "semantic_event_edge_recorded", "relationLabel": "lethargic/unconscious is a dehydration sign", "src": "lethargic_or_unconscious"}, {"dst": "severe_dehydration_present", "edgeId": "edge:d8cf568c6b89", "event": "semantic_event_edge_recorded", "relationLabel": "sunken eyes is a dehydration sign", "src": "sunken_eyes"}, {"dst": "severe_dehydration_present", "edgeId": "edge:b4cde5ea880a", "event": "semantic_event_edge_recorded", "relationLabel": "slow skin pinch is a dehydration sign", "src": "slow_skin_pinch"}, {"dst": "moderate_dehydration_present", "edgeId": "edge:39fa4d2c3496", "event": "semantic_event_edge_recorded", "relationLabel": "fluid loss concern required", "src": "fluid_loss_concern"}, {"dst": "moderate_dehydration_present", "edgeId": "edge:c844b515a782", "event": "semantic_event_edge_recorded", "relationLabel": "absence of severe dehydration", "src": "no_severe_dehydration"}, {"dst": "moderate_dehydration_present", "edgeId": "edge:df7bc31a1aac", "event": "semantic_event_edge_recorded", "relationLabel": "count=1 triggers moderate dehydration", "src": "dehydration_sign_count_eq_1"}, {"dst": "moderate_dehydration_present", "edgeId": "edge:2ed7f2f4c220", "event": "semantic_event_edge_recorded", "relationLabel": "drinking poorly triggers moderate dehydration", "src": "drinking_poorly"}, {"dst": "moderate_dehydration_present", "edgeId": "edge:ddcdd697afaa", "event": "semantic_event_edge_recorded", "relationLabel": "repeated vomiting triggers moderate dehydration", "src": "repeated_vomiting"}, {"dst": "dehydration_sign_count_eq_1", "edgeId": "edge:11bf013d7a11", "event": "semantic_event_edge_recorded", "relationLabel": "affects dehydration count", "src": "lethargic_or_unconscious"}, {"dst": "dehydration_sign_count_eq_1", "edgeId": "edge:013efdcf4dd2", "event": "semantic_event_edge_recorded", "relationLabel": "affects dehydration count", "src": "sunken_eyes"}, {"dst": "dehydration_sign_count_eq_1", "edgeId": "edge:5ca551945e74", "event": "semantic_event_edge_recorded", "relationLabel": "affects dehydration count", "src": "slow_skin_pinch"}, {"dst": "non_severe_respiratory_distress", "edgeId": "edge:1dfb2731f85a", "event": "semantic_event_edge_recorded", "relationLabel": "respiratory distress present", "src": "respiratory_distress"}, {"dst": "non_severe_respiratory_distress", "edgeId": "edge:b8d4775cef90", "event": "semantic_event_edge_recorded", "relationLabel": "not severe respiratory distress", "src": "no_severe_respiratory_distress"}, {"dst": "emergency_sign_airway_obstruction", "edgeId": "edge:f3d7b4191b56", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "airway_obstructed"}, {"dst": "emergency_sign_central_cyanosis", "edgeId": "edge:d34f1540c17c", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "central_cyanosis"}, {"dst": "emergency_sign_not_breathing", "edgeId": "edge:116deb834df8", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "not_breathing"}, {"dst": "emergency_sign_severe_respiratory_distress", "edgeId": "edge:8236d8f26233", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "severe_respiratory_distress"}, {"dst": "emergency_sign_circulatory_shock", "edgeId": "edge:563d99435674", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "circulatory_shock"}, {"dst": "emergency_sign_coma", "edgeId": "edge:920960b05c85", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "is_coma"}, {"dst": "emergency_sign_convulsing", "edgeId": "edge:6341722265ae", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "convulsing"}, {"dst": "emergency_sign_severe_dehydration", "edgeId": "edge:d9d05b791583", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as emergency sign", "src": "severe_dehydration_present"}, {"dst": "priority_sign_tiny_baby", "edgeId": "edge:b23c353ccd90", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "age_less_than_2_months"}, {"dst": "priority_sign_very_hot", "edgeId": "edge:548adfd23134", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "feels_very_hot"}, {"dst": "priority_sign_trauma", "edgeId": "edge:64741aebd5f3", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "severe_trauma_or_surgical"}, {"dst": "priority_sign_severe_pallor", "edgeId": "edge:56e99b37944e", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "severe_pallor"}, {"dst": "priority_sign_poisoning", "edgeId": "edge:28f787e1156b", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "poisoning"}, {"dst": "priority_sign_severe_pain", "edgeId": "edge:bc4da8479711", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "severe_pain"}, {"dst": "priority_sign_restless_irritable_lethargic", "edgeId": "edge:23462712cdef", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "restless_irritable_or_lethargic"}, {"dst": "priority_sign_urgent_referral", "edgeId": "edge:a8a0d5a770a2", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "urgent_referral"}, {"dst": "priority_sign_severe_wasting", "edgeId": "edge:6bdd7d4b1092", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "severe_wasting"}, {"dst": "priority_sign_oedema_both_feet", "edgeId": "edge:6ed9fa005f65", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "oedema_both_feet"}, {"dst": "priority_sign_major_burn", "edgeId": "edge:79a33e25175d", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "major_burn"}, {"dst": "priority_sign_moderate_dehydration", "edgeId": "edge:0556ecefce2f", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "moderate_dehydration_present"}, {"dst": "priority_sign_respiratory_distress", "edgeId": "edge:56006b7231ba", "event": "semantic_event_edge_recorded", "relationLabel": "classifies as priority sign", "src": "non_severe_respiratory_distress"}, {"dst": "emergency_signs_detected", "edgeId": "edge:f2d4e2ec842e", "event": "semantic_event_edge_recorded", "relationLabel": "contributes to emergency signs detection", "src": "emergency_sign_airway_obstruction"}, {"dst": "emergency_signs_detected", "edgeId": "edge:c59fd5a034bb", "event": "semantic_event_edge_recorded", "relationLabel": "contributes to emergency signs detection", "src": "emergency_sign_central_cyanosis"}, {"dst": "emergency_signs_detected", "edgeId": "edge:505a303c6d35", "event": "semantic_event_edge_recorded", "relationLabel": "contributes to emergency signs detection", "src": "emergency_sign_not_breathing"}, {"dst": "emergency_signs_detected", "edgeId": "edge:7d62a7d3596f", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "emergency_sign_severe_respiratory_distress"}, {"dst": "emergency_signs_detected", "edgeId": "edge:5ca53090758b", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "emergency_sign_circulatory_shock"}, {"dst": "emergency_signs_detected", "edgeId": "edge:80265764bc46", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "emergency_sign_coma"}, {"dst": "emergency_signs_detected", "edgeId": "edge:1a152978b3fd", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "emergency_sign_convulsing"}, {"dst": "emergency_signs_detected", "edgeId": "edge:8c7a58c2e19a", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "emergency_sign_severe_dehydration"}, {"dst": "priority_signs_detected", "edgeId": "edge:60a4e5909a7b", "event": "semantic_event_edge_recorded", "relationLabel": "contributes to priority detection", "src": "priority_sign_tiny_baby"}, {"dst": "priority_signs_detected", "edgeId": "edge:232096837786", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_very_hot"}, {"dst": "priority_signs_detected", "edgeId": "edge:21ed50391d71", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_trauma"}, {"dst": "priority_signs_detected", "edgeId": "edge:9396694c5eb5", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_severe_pallor"}, {"dst": "priority_signs_detected", "edgeId": "edge:03258954b477", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_poisoning"}, {"dst": "priority_signs_detected", "edgeId": "edge:d7ea97c4fb48", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_severe_pain"}, {"dst": "priority_signs_detected", "edgeId": "edge:6072952d70f6", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_restless_irritable_lethargic"}, {"dst": "priority_signs_detected", "edgeId": "edge:08557284f57e", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_urgent_referral"}, {"dst": "priority_signs_detected", "edgeId": "edge:e8826c747f37", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_severe_wasting"}, {"dst": "priority_signs_detected", "edgeId": "edge:bb15afcd7eab", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_oedema_both_feet"}, {"dst": "priority_signs_detected", "edgeId": "edge:b05c3f5de6e1", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_major_burn"}, {"dst": "priority_signs_detected", "edgeId": "edge:5a8d4dec1e56", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_respiratory_distress"}, {"dst": "priority_signs_detected", "edgeId": "edge:31c27e3261b1", "event": "semantic_event_edge_recorded", "relationLabel": "contributes", "src": "priority_sign_moderate_dehydration"}, {"dst": "assign_emergency_category", "edgeId": "edge:0ae4a8a6f25c", "event": "semantic_event_edge_recorded", "relationLabel": "presence of emergency signs leads to emergency category", "src": "emergency_signs_detected"}, {"dst": "assign_priority_category", "edgeId": "edge:a120c609491a", "event": "semantic_event_edge_recorded", "relationLabel": "presence of priority signs leads to priority category", "src": "priority_signs_detected"}, {"dst": "assign_non_urgent_category", "edgeId": "edge:a6fae4ab998c", "event": "semantic_event_edge_recorded", "relationLabel": "absence of signs leads to non‑urgent category", "src": "no_signs_detected"}, {"dst": "call_senior", "edgeId": "edge:9b51eb85e1b1", "event": "semantic_event_edge_recorded", "relationLabel": "emergency signs require calling senior health worker", "src": "emergency_signs_detected"}, {"dst": "lab_investigations", "edgeId": "edge:e1c16fb1a184", "event": "semantic_event_edge_recorded", "relationLabel": "emergency signs require emergency lab investigations", "src": "emergency_signs_detected"}, {"dst": "reassess_frequently", "edgeId": "edge:ca0fca924242", "event": "semantic_event_edge_recorded", "relationLabel": "emergency signs require frequent reassessment", "src": "emergency_signs_detected"}, {"dst": "start_airway_management", "edgeId": "edge:da782c35339b", "event": "semantic_event_edge_recorded", "relationLabel": "airway obstruction requires start airway management", "src": "airway_obstructed"}, {"dst": "start_airway_management", "edgeId": "edge:5b4410a8cdf8", "event": "semantic_event_edge_recorded", "relationLabel": "central cyanosis requires start airway management", "src": "central_cyanosis"}, {"dst": "start_airway_management", "edgeId": "edge:5fa08588a92e", "event": "semantic_event_edge_recorded", "relationLabel": "not breathing requires start airway management", "src": "not_breathing"}, {"dst": "start_breathing_support", "edgeId": "edge:28a503e4ab31", "event": "semantic_event_edge_recorded", "relationLabel": "severe respiratory distress requires breathing support", "src": "severe_respiratory_distress"}, {"dst": "start_circulatory_support", "edgeId": "edge:a7ae184ea49e", "event": "semantic_event_edge_recorded", "relationLabel": "circulatory shock requires circulatory support", "src": "circulatory_shock"}, {"dst": "manage_coma", "edgeId": "edge:f33c325e281f", "event": "semantic_event_edge_recorded", "relationLabel": "coma requires coma management", "src": "is_coma"}, {"dst": "manage_convulsion", "edgeId": "edge:d0b592f0f9a1", "event": "semantic_event_edge_recorded", "relationLabel": "convulsing requires convulsion management", "src": "convulsing"}, {"dst": "manage_dehydration", "edgeId": "edge:f9b7a69bad7a", "event": "semantic_event_edge_recorded", "relationLabel": "severe dehydration requires dehydration management", "src": "severe_dehydration_present"}, {"dst": "patient_waits_in_queue", "edgeId": "edge:6e79747fcd02", "event": "semantic_event_edge_recorded", "relationLabel": "non‑urgent patients wait in queue", "src": "assign_non_urgent_category"}, {"dst": "patient_placed_at_front_of_queue", "edgeId": "edge:410df6aff0a6", "event": "semantic_event_edge_recorded", "relationLabel": "priority patients placed at front of queue", "src": "assign_priority_category"}], "metadata": {"confidenceMode": "llm_estimated", "domainPolicy": "domain-agnostic extraction; no document-specific relation schema is hardcoded", "edgePolicy": "edges are human-readable relations between events", "extractorMode": "semantic_event_graph", "model": "deepseek-v4-pro", "module": "GeneratedTriageSafety", "nodePolicy": "nodes are human-readable events, states, actions, conditions, decisions, or outcomes", "pdfFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/ETAT_module1_textbook.pdf", "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "graphFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/event_graph/graph.json"}, "nodes": [{"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment structure field.", "description": "Patient's airway is obstructed.", "displayByDefault": true, "eventType": "condition", "id": "airway_obstructed", "label": "airway is obstructed", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "airwayObstructed : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient shows central cyanosis (blue skin/mucous membranes).", "displayByDefault": true, "eventType": "condition", "id": "central_cyanosis", "label": "central cyanosis present", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "centralCyanosis : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is not breathing.", "displayByDefault": true, "eventType": "condition", "id": "not_breathing", "label": "patient is not breathing", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "notBreathing : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has severe respiratory distress.", "displayByDefault": true, "eventType": "condition", "id": "severe_respiratory_distress", "label": "severe respiratory distress", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "severeRespiratoryDistress : Bool"}, {"confidence": 1.0, "confidenceReason": "Derived from warmHands field used in hasCirculatoryShock.", "description": "Patient's hands are cold (derived from warmHands being false).", "displayByDefault": true, "eventType": "condition", "id": "cold_hands", "label": "patient has cold hands", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "warmHands : Bool (used negated)"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Capillary refill time is greater than 3 seconds.", "displayByDefault": true, "eventType": "condition", "id": "capillary_refill_over_3sec", "label": "capillary refill > 3 seconds", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "capillaryRefillOver3sec : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient's pulse is weak and fast.", "displayByDefault": true, "eventType": "condition", "id": "weak_and_fast_pulse", "label": "pulse is weak and fast", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "weakAndFastPulse : Bool"}, {"confidence": 1.0, "confidenceReason": "From AVPULevel inductive and TriageAssessment field.", "description": "Patient is alert on AVPU scale.", "displayByDefault": true, "eventType": "state", "id": "avpu_alert", "label": "AVPU level: alert", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "avpu : AVPULevel (AVPULevel.alert)"}, {"confidence": 1.0, "confidenceReason": "AVPULevel.voice used in isLethargic.", "description": "Patient responds to voice (V on AVPU).", "displayByDefault": true, "eventType": "condition", "id": "avpu_voice", "label": "responds to voice", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "AVPULevel.voice"}, {"confidence": 1.0, "confidenceReason": "AVPULevel.pain used in isComa.", "description": "Patient responds only to pain (P on AVPU).", "displayByDefault": true, "eventType": "condition", "id": "avpu_pain", "label": "responds to pain", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "AVPULevel.pain"}, {"confidence": 1.0, "confidenceReason": "AVPULevel.unresponsive used in isComa.", "description": "Patient is unresponsive (U on AVPU).", "displayByDefault": true, "eventType": "condition", "id": "avpu_unresponsive", "label": "unresponsive", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "AVPULevel.unresponsive"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is actively convulsing.", "displayByDefault": true, "eventType": "condition", "id": "convulsing", "label": "patient is convulsing", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "convulsing : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient's eyes are sunken.", "displayByDefault": true, "eventType": "condition", "id": "sunken_eyes", "label": "sunken eyes", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "sunkenEyes : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Skin pinch goes back very slowly.", "displayByDefault": true, "eventType": "condition", "id": "slow_skin_pinch", "label": "slow skin pinch", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "slowSkinPinch : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has diarrhea.", "displayByDefault": true, "eventType": "condition", "id": "diarrhea", "label": "has diarrhea", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "diarrhea : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is vomiting.", "displayByDefault": true, "eventType": "condition", "id": "vomiting", "label": "has vomiting", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "vomiting : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is drinking poorly.", "displayByDefault": true, "eventType": "condition", "id": "drinking_poorly", "label": "drinking poorly", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "drinkingPoorly : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is vomiting repeatedly.", "displayByDefault": true, "eventType": "condition", "id": "repeated_vomiting", "label": "repeated vomiting", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "repeatedVomiting : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient feels very hot to touch, indicating high fever.", "displayByDefault": true, "eventType": "condition", "id": "feels_very_hot", "label": "feels very hot", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "feelsVeryHot : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has severe trauma or a surgical condition.", "displayByDefault": true, "eventType": "condition", "id": "severe_trauma_or_surgical", "label": "severe trauma or surgical condition", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "severeTraumaOrSurgical : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has severe pallor, indicating severe anemia.", "displayByDefault": true, "eventType": "condition", "id": "severe_pallor", "label": "severe pallor", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "severePallor : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has a history of poisoning.", "displayByDefault": true, "eventType": "condition", "id": "poisoning", "label": "poisoning", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "poisoning : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is experiencing severe pain.", "displayByDefault": true, "eventType": "condition", "id": "severe_pain", "label": "severe pain", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "severePain : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient is restless, continuously irritable, or lethargic.", "displayByDefault": true, "eventType": "condition", "id": "restless_irritable_or_lethargic", "label": "restless, irritable, or lethargic", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "restlessIrritableOrLethargic : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has an urgent referral from another facility.", "displayByDefault": true, "eventType": "condition", "id": "urgent_referral", "label": "urgent referral", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "urgentReferral : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has visible severe wasting (malnutrition).", "displayByDefault": true, "eventType": "condition", "id": "severe_wasting", "label": "severe wasting", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "severeWasting : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has oedema of both feet (kwashiorkor sign).", "displayByDefault": true, "eventType": "condition", "id": "oedema_both_feet", "label": "oedema of both feet", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "oedemaBothFeet : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has a major burn.", "displayByDefault": true, "eventType": "condition", "id": "major_burn", "label": "major burn", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "majorBurn : Bool"}, {"confidence": 1.0, "confidenceReason": "Directly from TriageAssessment field.", "description": "Patient has respiratory distress (non-severe).", "displayByDefault": true, "eventType": "condition", "id": "respiratory_distress", "label": "respiratory distress", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "respiratoryDistress : Bool"}, {"confidence": 1.0, "confidenceReason": "Used directly in priority sign list generation.", "description": "Patient is under 2 months old.", "displayByDefault": true, "eventType": "condition", "id": "age_less_than_2_months", "label": "patient age is less than 2 months", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "ageMonths < 2 in detectedPrioritySigns"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient responds to voice but not fully alert (V on AVPU).", "displayByDefault": true, "eventType": "condition", "id": "is_lethargic", "label": "patient is lethargic", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def isLethargic (avpu : AVPULevel) : Bool := avpu == AVPULevel.voice"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient responds only to pain or is unresponsive (P or U on AVPU).", "displayByDefault": true, "eventType": "condition", "id": "is_coma", "label": "patient is in coma", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def isComa (avpu : AVPULevel) : Bool := avpu == AVPULevel.pain || avpu == AVPULevel.unresponsive"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient has circulatory shock: cold hands, capillary refill >3sec, weak and fast pulse.", "displayByDefault": true, "eventType": "condition", "id": "circulatory_shock", "label": "circulatory shock present", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def hasCirculatoryShock (a : TriageAssessment) : Bool := (! a.warmHands) && a.capillaryRefillOver3sec && a.weakAndFastPulse"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient has diarrhea, vomiting, drinking poorly, or repeated vomiting.", "displayByDefault": true, "eventType": "condition", "id": "fluid_loss_concern", "label": "fluid loss concern", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def fluidLossConcern (a : TriageAssessment) : Bool := a.diarrhea || a.vomiting || a.drinkingPoorly || a.repeatedVomiting"}, {"confidence": 1.0, "confidenceReason": "Used in dehydrationSignCount.", "description": "Patient is either lethargic (V) or unconscious (P or U).", "displayByDefault": true, "eventType": "condition", "id": "lethargic_or_unconscious", "label": "patient is lethargic or unconscious", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "let lethargicOrUnconscious := isComa a.avpu || isLethargic a.avpu"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient has severe dehydration: dehydration sign count >= 2.", "displayByDefault": true, "eventType": "condition", "id": "severe_dehydration_present", "label": "severe dehydration present", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def severeDehydrationPresent (a : TriageAssessment) : Bool := dehydrationSignCount a ≥ 2"}, {"confidence": 1.0, "confidenceReason": "Defined in Lean code.", "description": "Patient has moderate dehydration: fluid loss concern, no severe dehydration, and (count=1 or drinking poorly or repeated vomiting).", "displayByDefault": true, "eventType": "condition", "id": "moderate_dehydration_present", "label": "moderate dehydration present", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "def moderateDehydrationPresent (a : TriageAssessment) : Bool := fluidLossConcern a && ! severeDehydrationPresent a && ((dehydrationSignCount a == 1) || a.drinkingPoorly || a.repeatedVomiting)"}, {"confidence": 0.9, "confidenceReason": "Explicitly used in moderateDehydrationPresent; threshold logic.", "description": "Exactly one of lethargic/unconscious, sunken eyes, or slow skin pinch is true.", "displayByDefault": true, "eventType": "condition", "id": "dehydration_sign_count_eq_1", "label": "dehydration sign count equals 1", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "dehydrationSignCount a == 1"}, {"confidence": 1.0, "confidenceReason": "Used in detectedPrioritySigns.", "description": "Patient has respiratory distress but it is not severe.", "displayByDefault": true, "eventType": "condition", "id": "non_severe_respiratory_distress", "label": "respiratory distress but not severe", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "a.respiratoryDistress && ! a.severeRespiratoryDistress"}, {"confidence": 1.0, "confidenceReason": "Used in moderateDehydrationPresent.", "description": "Severe dehydration is NOT present.", "displayByDefault": true, "eventType": "condition", "id": "no_severe_dehydration", "label": "no severe dehydration", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "! severeDehydrationPresent a"}, {"confidence": 1.0, "confidenceReason": "Used in condition for priority respiratory distress.", "description": "Severe respiratory distress is NOT present.", "displayByDefault": true, "eventType": "condition", "id": "no_severe_respiratory_distress", "label": "no severe respiratory distress", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "! a.severeRespiratoryDistress"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating airway obstruction.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_airway_obstruction", "label": "emergency sign: airway obstruction", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.airwayObstruction"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating central cyanosis.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_central_cyanosis", "label": "emergency sign: central cyanosis", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.centralCyanosis"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating patient not breathing.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_not_breathing", "label": "emergency sign: not breathing", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.notBreathing"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating severe respiratory distress.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_severe_respiratory_distress", "label": "emergency sign: severe respiratory distress", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.severeRespiratoryDistress"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating circulatory shock.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_circulatory_shock", "label": "emergency sign: circulatory shock", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.circulatoryShock"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating coma.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_coma", "label": "emergency sign: coma", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.coma"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating convulsions.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_convulsing", "label": "emergency sign: convulsing", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.convulsing"}, {"confidence": 1.0, "confidenceReason": "From emergencySignList.", "description": "Emergency sign indicating severe dehydration.", "displayByDefault": true, "eventType": "condition", "id": "emergency_sign_severe_dehydration", "label": "emergency sign: severe dehydration", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencySign.severeDehydration"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: patient under 2 months old.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_tiny_baby", "label": "priority sign: tiny baby", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.tinyBaby"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: patient feels very hot.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_very_hot", "label": "priority sign: very hot", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.veryHot"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: severe trauma or surgical condition.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_trauma", "label": "priority sign: trauma", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.trauma"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: severe pallor.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_severe_pallor", "label": "priority sign: severe pallor", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.severePallor"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: poisoning.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_poisoning", "label": "priority sign: poisoning", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.poisoning"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: severe pain.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_severe_pain", "label": "priority sign: severe pain", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.severePain"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: restless, continuously irritable, or lethargic.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_restless_irritable_lethargic", "label": "priority sign: restless, irritable, or lethargic", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.restlessIrritableOrLethargic"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: urgent referral from another facility.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_urgent_referral", "label": "priority sign: urgent referral", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.urgentReferral"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: visible severe wasting (malnutrition).", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_severe_wasting", "label": "priority sign: severe wasting", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.severeWasting"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: oedema of both feet (kwashiorkor).", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_oedema_both_feet", "label": "priority sign: oedema of both feet", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.oedemaBothFeet"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: major burn.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_major_burn", "label": "priority sign: major burn", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.majorBurn"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: respiratory distress (non-severe).", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_respiratory_distress", "label": "priority sign: respiratory distress", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.respiratoryDistress"}, {"confidence": 1.0, "confidenceReason": "From detectedPrioritySigns.", "description": "Priority sign: moderate dehydration.", "displayByDefault": true, "eventType": "condition", "id": "priority_sign_moderate_dehydration", "label": "priority sign: moderate dehydration", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "PrioritySign.moderateDehydration"}, {"confidence": 1.0, "confidenceReason": "Condition in triageDecision.", "description": "At least one emergency sign is present.", "displayByDefault": true, "eventType": "condition", "id": "emergency_signs_detected", "label": "emergency signs detected", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergSigns.length > 0"}, {"confidence": 1.0, "confidenceReason": "Condition in triageDecision.", "description": "At least one priority sign is present.", "displayByDefault": true, "eventType": "condition", "id": "priority_signs_detected", "label": "priority signs detected", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "priorSigns.length > 0"}, {"confidence": 1.0, "confidenceReason": "Else branch in triageDecision.", "description": "No emergency and no priority signs detected.", "displayByDefault": true, "eventType": "condition", "id": "no_signs_detected", "label": "no emergency or priority signs detected", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "emergSigns.length = 0 and priorSigns.length = 0"}, {"confidence": 1.0, "confidenceReason": "From triageDecision.", "description": "Patient is assigned to emergency triage category, requiring immediate emergency treatment.", "displayByDefault": true, "eventType": "decision", "id": "assign_emergency_category", "label": "assign emergency category", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "TriageCategory.emergency"}, {"confidence": 1.0, "confidenceReason": "From triageDecision.", "description": "Patient is assigned to priority triage category, requiring prompt assessment.", "displayByDefault": true, "eventType": "decision", "id": "assign_priority_category", "label": "assign priority category", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "TriageCategory.priority"}, {"confidence": 1.0, "confidenceReason": "From triageDecision.", "description": "Patient is assigned to non-urgent category and can wait in queue.", "displayByDefault": true, "eventType": "decision", "id": "assign_non_urgent_category", "label": "assign non-urgent category", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "TriageCategory.nonUrgent"}, {"confidence": 1.0, "confidenceReason": "Set in emergency triageDecision branch; theorem emergency_implies_reassess.", "description": "Patient needs frequent reassessment.", "displayByDefault": true, "eventType": "outcome", "id": "reassess_frequently", "label": "reassess frequently", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "reassessFrequently := true"}, {"confidence": 1.0, "confidenceReason": "Mentioned in PDF context; implied by non-urgent category.", "description": "Non-urgent patients can wait their turn in the queue.", "displayByDefault": true, "eventType": "outcome", "id": "patient_waits_in_queue", "label": "patient can wait in queue", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "Source PDF: 'NON-URGENT cases. These children can wait their turn in the queue for assessment and treatment.'"}, {"confidence": 1.0, "confidenceReason": "Mentioned in PDF context; implied by priority category.", "description": "Priority patients are moved to the front of the queue for rapid assessment.", "displayByDefault": true, "eventType": "outcome", "id": "patient_placed_at_front_of_queue", "label": "patient is placed at front of queue", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "Source PDF: 'Those with PRIORITY SIGNS ... should be given priority in the queue ...'"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency airway management.", "displayByDefault": true, "eventType": "action", "id": "start_airway_management", "label": "start airway management", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.startAirwayManagement"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency breathing support.", "displayByDefault": true, "eventType": "action", "id": "start_breathing_support", "label": "start breathing support", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.startBreathingSupport"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency circulatory support.", "displayByDefault": true, "eventType": "action", "id": "start_circulatory_support", "label": "start circulatory support", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.startCirculatorySupport"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency management of coma.", "displayByDefault": true, "eventType": "action", "id": "manage_coma", "label": "manage coma", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.manageComa"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency management of convulsions.", "displayByDefault": true, "eventType": "action", "id": "manage_convulsion", "label": "manage convulsion", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.manageConvulsion"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions.", "description": "Initiate emergency management of dehydration.", "displayByDefault": true, "eventType": "action", "id": "manage_dehydration", "label": "manage dehydration", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.manageDehydration"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions and theorem.", "description": "Call a senior health worker for help.", "displayByDefault": true, "eventType": "action", "id": "call_senior", "label": "call senior health worker", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.callSenior"}, {"confidence": 1.0, "confidenceReason": "From requiredEmergencyActions and theorem.", "description": "Perform emergency laboratory investigations (e.g., blood glucose, hemoglobin).", "displayByDefault": true, "eventType": "action", "id": "lab_investigations", "label": "carry out emergency laboratory investigations", "module": "GeneratedTriageSafety", "nodeKind": "event", "probabilityTarget": true, "sourceFile": "/Users/junhao/Desktop/UCSD/cse193/auto formalization/pipeline_out/etat_module1/GeneratedTriageSafety.lean", "sourceText": "EmergencyAction.labInvestigations"}]}</script>
+  <script>
+    const graphData = JSON.parse(document.getElementById("graph-data").textContent);
+    const rawNodes = graphData.nodes || [];
+    const rawEdges = graphData.edges || [];
+    const nodes = rawNodes.map((node, index) => ({
+      ...node,
+      index,
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      visible: node.displayByDefault !== false
+    }));
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const edges = rawEdges
+      .filter(edge => nodeById.has(edge.src) && nodeById.has(edge.dst))
+      .map(edge => ({ ...edge, source: nodeById.get(edge.src), target: nodeById.get(edge.dst), visible: edge.displayByDefault !== false }));
+
+    const svg = document.getElementById("graph");
+    const details = document.getElementById("details");
+    const stats = document.getElementById("stats");
+    const search = document.getElementById("search");
+    const nodeKindSelect = document.getElementById("nodeKind");
+    const edgeLayerSelect = document.getElementById("edgeLayer");
+    const domainOnly = document.getElementById("domainOnly");
+    const showEvidence = document.getElementById("showEvidence");
+    const backBtn = document.getElementById("backBtn");
+    const homeBtn = document.getElementById("homeBtn");
+    const includeHiddenEvidenceEdges = false;
+    const hasDomainEvents = nodes.some(node => node.nodeKind === "domain_event" || node.nodeKind === "event");
+    const hasSequenceEdges = edges.some(edge => ["has_condition", "has_outcome", "context_suggests", "context_triggers"].includes(edge.edgeKind));
+
+    const width = () => svg.clientWidth || 900;
+    const height = () => svg.clientHeight || 700;
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let selectedNode = null;
+    let selectedEdge = null;
+    let draggingNode = null;
+    let panning = false;
+    let panStart = null;
+    const viewHistory = [];
+
+    const ns = "http://www.w3.org/2000/svg";
+    const root = document.createElementNS(ns, "g");
+    const edgeLayer = document.createElementNS(ns, "g");
+    const nodeLayer = document.createElementNS(ns, "g");
+    const labelLayer = document.createElementNS(ns, "g");
+    root.append(edgeLayer, nodeLayer, labelLayer);
+    svg.append(root);
+
+    const marker = document.createElementNS(ns, "marker");
+    marker.setAttribute("id", "arrow");
+    marker.setAttribute("viewBox", "0 0 10 10");
+    marker.setAttribute("refX", "9");
+    marker.setAttribute("refY", "5");
+    marker.setAttribute("markerWidth", "5");
+    marker.setAttribute("markerHeight", "5");
+    marker.setAttribute("orient", "auto-start-reverse");
+    const markerPath = document.createElementNS(ns, "path");
+    markerPath.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+    markerPath.setAttribute("fill", "#6f7c80");
+    marker.append(markerPath);
+    const defs = document.createElementNS(ns, "defs");
+    defs.append(marker);
+    svg.prepend(defs);
+
+    function nodeLabel(node) {
+      const base = node.label || node.shortName || node.fieldName || node.pretty || node.name || node.id;
+      if (node.nodeKind === "event") return base;
+      if (node.nodeKind !== "domain_event") return base;
+      if (node.eventRole === "condition") return base.toLowerCase().startsWith("if ") ? base : `if ${base}`;
+      if (["outcome", "then_outcome", "else_outcome", "alternative"].includes(node.eventRole)) {
+        return base.toLowerCase().startsWith("then ") ? base : `then ${base}`;
+      }
+      return base;
+    }
+
+    function edgeLabel(edge) {
+      if (edge.label || edge.relationLabel) return edge.label || edge.relationLabel;
+      const readable = {
+        has_condition: "has if",
+        has_outcome: "has then",
+        has_alternative: "or",
+        context_suggests: "suggests",
+        context_triggers: "then",
+        context_blocks: "blocks",
+        context_alternative: "otherwise",
+        event_requires: "requires",
+        uses_context: "uses context",
+        grounded_in: "evidence"
+      }[edge.edgeKind];
+      if (readable) return readable;
+      const roleValue = edge.role || edge.relationRole || edge.referenceRole || "";
+      const role = roleValue ? `/${roleValue}` : "";
+      return `${edge.edgeKind}${role}`;
+    }
+
+    function radius(node) {
+      if (node.nodeKind === "event") {
+        const baseByType = {
+          condition: 9.4,
+          state: 9.2,
+          action: 9.8,
+          decision: 10.2,
+          outcome: 9.8,
+          rule: 9.4,
+          entity: 8.4,
+          evidence: 7.2
+        };
+        const base = baseByType[node.eventType] || 9;
+        return Math.min(base + Math.sqrt(node.degree || 0) * 0.75, 18);
+      }
+      if (node.nodeKind === "domain_event") {
+        const baseBySemantic = {
+          requirement: 9.2,
+          decision_option: 8.8,
+          context_condition: 8.8,
+          diagnosis_hypothesis: 9.4,
+          state_event: 8.8,
+          scenario_event: 8.6,
+          evidence_case: 6.8
+        };
+        const base = baseBySemantic[node.semanticKind] || 8.2;
+        return Math.min(base + Math.sqrt(node.degree || 0) * 0.7, 17);
+      }
+      if (node.nodeKind === "event_object") {
+        const baseByObject = {
+          inductive: 8.4,
+          structure: 8.4,
+          class: 8.4,
+          def: 7.4,
+          theorem: 7.4,
+          lemma: 7.4,
+          example: 7,
+          constructor: 6.4,
+          field: 6.2,
+          external: 5.6
+        };
+        const base = baseByObject[node.objectKind] || 6.8;
+        return Math.min(base + Math.sqrt(node.degree || 0) * 0.62, 15);
+      }
+      const base = {
+        declaration: 7.5,
+        projection: 6.5,
+        prop_expr: 5.8,
+        domain_event: 8.2,
+        event: 9,
+        module: 6
+      }[node.nodeKind] || 5.5;
+      const deg = node.degree || 0;
+      return Math.min(base + Math.sqrt(deg) * 0.7, 15);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, ch => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    function safeClass(value) {
+      return String(value || "unknown").toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    }
+
+    function formatSpan(span) {
+      if (!span) return "";
+      const start = span.startLine ?? span.line ?? "";
+      const end = span.endLine ?? start;
+      if (!start) return "";
+      return start === end ? `L${start}` : `L${start}-L${end}`;
+    }
+
+    function sourceLocation(record, spanKey = "sourceSpan") {
+      const file = record.sourceFile || graphData.metadata?.sourceFile || "";
+      const span = formatSpan(record[spanKey]);
+      if (file && span) return `${file}:${span}`;
+      return file || span;
+    }
+
+    function kvRow(key, value) {
+      if (value === undefined || value === null || value === "") return "";
+      return `<div class="key">${escapeHtml(key)}</div><div class="val">${escapeHtml(value)}</div>`;
+    }
+
+    function sourceSection(title, text, location) {
+      if (!text && !location) return "";
+      return `
+        <div class="section-title">${escapeHtml(title)}</div>
+        ${location ? `<div class="source-loc">${escapeHtml(location)}</div>` : ""}
+        ${text ? `<pre>${escapeHtml(text)}</pre>` : ""}
+      `;
+    }
+
+    function isDomainNode(node) {
+      return node.nodeKind === "event" ||
+        node.nodeKind === "domain_event" ||
+        (node.nodeKind === "event_object" && node.displayByDefault !== false);
+    }
+
+    function isSequenceWrapper(node) {
+      return node.nodeKind === "domain_event" &&
+        node.eventRole === "source_declaration_event" &&
+        edges.some(edge => edge.source === node && ["has_condition", "has_outcome", "has_alternative"].includes(edge.edgeKind));
+    }
+
+    function nodeDefaultVisible(node) {
+      if (showEvidence.checked) return true;
+      if (isSequenceWrapper(node)) return false;
+      if (hasSequenceEdges && node.eventRole === "source_declaration_event" && node.semanticKind === "scenario_event") return false;
+      if (hasDomainEvents && !isDomainNode(node)) return false;
+      return node.displayByDefault !== false;
+    }
+
+    function edgeDefaultVisible(edge) {
+      return showEvidence.checked || edge.displayByDefault !== false;
+    }
+
+    function populateFilters() {
+      const nodeKinds = ["all", ...Array.from(new Set(nodes.map(n => n.nodeKind || "unknown"))).sort()];
+      nodeKindSelect.innerHTML = nodeKinds.map(kind => `<option value="${escapeHtml(kind)}">${kind === "all" ? "All events" : kind}</option>`).join("");
+
+      const layers = ["all", ...Array.from(new Set(edges.map(e => e.layer || "unknown"))).sort()];
+      edgeLayerSelect.innerHTML = layers.map(layer => `<option value="${escapeHtml(layer)}">${layer === "all" ? "All edges" : layer}</option>`).join("");
+    }
+
+    function buildDegree() {
+      nodes.forEach(node => node.degree = 0);
+      edges.forEach(edge => {
+        edge.source.degree += 1;
+        edge.target.degree += 1;
+      });
+    }
+
+    function edgeAllowedByControls(edge) {
+      const layer = edgeLayerSelect.value;
+      const layerOk = layer === "all" || edge.layer === layer;
+      const proofText = [edge.role, edge.relationRole, edge.relationLabel, edge.edgeKind, edge.sourceKind].filter(Boolean).join(" ");
+      const proofOk = showEvidence.checked || includeHiddenEvidenceEdges || !proofText.includes("proof");
+      const defaultOk = edgeDefaultVisible(edge);
+      const domainOk = !domainOnly.checked || (isDomainNode(edge.source) && isDomainNode(edge.target));
+      return defaultOk && layerOk && proofOk && domainOk;
+    }
+
+    function snapshotView() {
+      return {
+        nodeIds: nodes.filter(node => node.visible).map(node => node.id),
+        edgeIds: edges.filter(edge => edge.visible).map(edge => edge.id),
+        selectedNodeId: selectedNode?.id || null,
+        selectedEdgeId: selectedEdge?.id || null,
+        search: search.value,
+        nodeKind: nodeKindSelect.value,
+        edgeLayer: edgeLayerSelect.value,
+        domainOnly: domainOnly.checked,
+        showEvidence: showEvidence.checked,
+      };
+    }
+
+    function restoreView(state) {
+      const nodeIds = new Set(state.nodeIds);
+      const edgeIds = new Set(state.edgeIds);
+      search.value = state.search || "";
+      nodeKindSelect.value = state.nodeKind || "all";
+      edgeLayerSelect.value = state.edgeLayer || "all";
+      domainOnly.checked = !!state.domainOnly;
+      showEvidence.checked = !!state.showEvidence;
+      nodes.forEach(node => { node.visible = nodeIds.has(node.id); });
+      edges.forEach(edge => { edge.visible = edgeIds.has(edge.id); });
+      selectedNode = state.selectedNodeId ? nodeById.get(state.selectedNodeId) || null : null;
+      selectedEdge = state.selectedEdgeId ? edges.find(edge => edge.id === state.selectedEdgeId) || null : null;
+      layoutGraph({ fit: true });
+      updateClasses();
+      updateStats();
+      updateBackState();
+      if (selectedEdge) {
+        renderEdgeDetails(selectedEdge);
+      } else if (selectedNode) {
+        renderDetails(selectedNode);
+      } else {
+        renderEmptyDetails();
+      }
+    }
+
+    function updateBackState() {
+      backBtn.disabled = viewHistory.length === 0;
+    }
+
+    function backView() {
+      const previous = viewHistory.pop();
+      if (previous) restoreView(previous);
+    }
+
+    function isSequenceEdge(edge) {
+      return ["context_suggests", "context_triggers", "context_blocks", "context_alternative"].includes(edge.edgeKind);
+    }
+
+    function shouldUseSequenceLayout() {
+      return hasSequenceEdges && !showEvidence.checked && edgeLayerSelect.value === "all";
+    }
+
+    function isSemanticEventGraph() {
+      return graphData.metadata?.extractorMode === "semantic_event_graph" ||
+        nodes.some(node => node.nodeKind === "event") ||
+        edges.some(edge => edge.layer === "semantic" || edge.relationKind);
+    }
+
+    function isSemanticEventNode(node) {
+      return node.nodeKind === "event" || node.nodeKind === "domain_event";
+    }
+
+    function semanticType(node) {
+      if (node.eventType) return node.eventType;
+      const semantic = node.semanticKind || "";
+      if (semantic === "context_condition" || semantic === "diagnosis_hypothesis") return "condition";
+      if (semantic === "decision_option") return "decision";
+      if (semantic === "requirement") return "rule";
+      if (semantic === "evidence_case") return "evidence";
+      if (semantic === "state_event" || semantic === "scenario_event") return "state";
+      return "state";
+    }
+
+    function semanticTypeRank(node) {
+      const ranks = {
+        evidence: 0,
+        entity: 0,
+        condition: 1,
+        state: 2,
+        rule: 3,
+        decision: 4,
+        action: 5,
+        outcome: 6
+      };
+      return ranks[semanticType(node)] ?? 3;
+    }
+
+    function semanticText(node) {
+      return [
+        node.id,
+        node.label,
+        node.shortName,
+        node.name,
+        node.description,
+        node.sourceText,
+        semanticType(node)
+      ].filter(Boolean).join(" ").toLowerCase();
+    }
+
+    function decisionSeverityRank(node) {
+      const text = semanticText(node);
+      if (/(non[-_\s]?urgent|queue|wait|routine|normal|low|minor|green)/.test(text)) return 0;
+      if (/(priority|urgent|rapid|soon|moderate|yellow|orange)/.test(text)) return 1;
+      if (/(emergency|critical|immediate|resuscit|red|danger|life[-_\s]?threat)/.test(text)) return 2;
+      return 1;
+    }
+
+    function isConditionLike(node) {
+      return ["condition", "state", "rule", "entity", "evidence"].includes(semanticType(node));
+    }
+
+    function flowRelation(edge) {
+      return edge.relationKind || edge.edgeKind || "";
+    }
+
+    function isDiagnosticFlowEdge(edge) {
+      if (!edge.visible || !edge.source.visible || !edge.target.visible || edge.source === edge.target) return false;
+      if (!isSemanticEventNode(edge.source) || !isSemanticEventNode(edge.target)) return false;
+      const relation = flowRelation(edge);
+      return !["contrasts", "prevents", "blocks"].includes(relation);
+    }
+
+    function diagnosticFlowEndpoints(edge) {
+      const relation = flowRelation(edge);
+      if (relation === "includes") {
+        return { source: edge.target, target: edge.source };
+      }
+      return { source: edge.source, target: edge.target };
+    }
+
+    function shouldUseDiagnosticLayout() {
+      return isSemanticEventGraph() && !showEvidence.checked;
+    }
+
+    function nodeVisualWidth(node) {
+      return Math.min(Math.max(nodeLabel(node).length * 7.2 + 76, 190), 430);
+    }
+
+    function rowWidth(row) {
+      if (!row.length) return 0;
+      return row.reduce((sum, node) => sum + nodeVisualWidth(node), 0);
+    }
+
+    function splitRows(items, maxPerRow = 4) {
+      const rows = [];
+      for (let i = 0; i < items.length; i += maxPerRow) {
+        rows.push(items.slice(i, i + maxPerRow));
+      }
+      return rows;
+    }
+
+    function assignSequenceRow(row, y) {
+      const totalWidth = rowWidth(row);
+      let cursor = -totalWidth / 2;
+      row.forEach(node => {
+        const width = nodeVisualWidth(node);
+        node.x = cursor + width / 2;
+        node.y = y;
+        node.vx = 0;
+        node.vy = 0;
+        node.sequenceLayout = true;
+        cursor += width;
+      });
+    }
+
+    function sourceOrder(node) {
+      return Number(node.sourceSpan?.startLine || 999999);
+    }
+
+    function declarationKind(node) {
+      return node.objectKind || node.declKind || node.nodeKind || "unknown";
+    }
+
+    function declaresProp(node) {
+      return /:\s*Prop\b/.test(`${node.sourceText || ""} ${node.typeText || ""}`);
+    }
+
+    function kindRank(node) {
+      if (node.nodeKind === "module") return 0;
+      if (node.nodeKind === "event") {
+        const eventType = node.eventType || "";
+        const eventRanks = {
+          condition: 1,
+          state: 2,
+          decision: 3,
+          action: 4,
+          outcome: 5,
+          rule: 6,
+          evidence: 7,
+          entity: 8
+        };
+        return eventRanks[eventType] || 3;
+      }
+      if (node.nodeKind === "domain_event") {
+        const semantic = node.semanticKind || "";
+        if (semantic === "context_condition") return 2;
+        if (semantic === "requirement") return 3;
+        if (semantic === "decision_option") return 4;
+        if (semantic === "diagnosis_hypothesis") return 4;
+        if (semantic === "state_event" || semantic === "scenario_event") return 4;
+        if (semantic === "evidence_case") return 7;
+        return 4;
+      }
+      if (node.nodeKind === "event_object" || node.nodeKind === "declaration") {
+        const kind = declarationKind(node);
+        if (["inductive", "structure", "class"].includes(kind)) return 1;
+        if (["constructor", "field", "projection", "derived_instance"].includes(kind)) return 2;
+        if (kind === "def") return declaresProp(node) ? 3 : 5;
+        if (["theorem", "lemma", "example"].includes(kind)) return 6;
+        if (kind === "instance") return 5;
+        if (kind === "external") return 7;
+        return 4;
+      }
+      if (node.nodeKind === "projection") return 2;
+      if (node.nodeKind === "prop_expr") return 4;
+      return 7;
+    }
+
+    function baseLevel(node) {
+      return kindRank(node);
+    }
+
+    function sortKey(node) {
+      return [
+        String(kindRank(node)).padStart(2, "0"),
+        String(sourceOrder(node)).padStart(6, "0"),
+        node.namespace || "",
+        declarationKind(node),
+        nodeLabel(node)
+      ].join("|").toLowerCase();
+    }
+
+    function layoutDiagnostic() {
+      const visible = nodes.filter(node => node.visible);
+      visible.forEach(node => {
+        node.sequenceLayout = true;
+        node.x = 0;
+        node.y = 0;
+        node.vx = 0;
+        node.vy = 0;
+      });
+      if (!visible.length) return;
+
+      const flowEdges = edges.filter(isDiagnosticFlowEdge).map(edge => ({
+        edge,
+        ...diagnosticFlowEndpoints(edge)
+      })).filter(item => item.source.visible && item.target.visible && item.source !== item.target);
+
+      const incomingByTarget = new Map();
+      const outgoingBySource = new Map();
+      flowEdges.forEach(item => {
+        if (!incomingByTarget.has(item.target.id)) incomingByTarget.set(item.target.id, []);
+        if (!outgoingBySource.has(item.source.id)) outgoingBySource.set(item.source.id, []);
+        incomingByTarget.get(item.target.id).push(item);
+        outgoingBySource.get(item.source.id).push(item);
+      });
+
+      const depthMemo = new Map();
+      function conditionDepth(node, stack = new Set()) {
+        if (!isConditionLike(node)) return 0;
+        if (depthMemo.has(node.id)) return depthMemo.get(node.id);
+        if (stack.has(node.id)) return 0;
+        stack.add(node.id);
+        const incoming = (incomingByTarget.get(node.id) || [])
+          .filter(item => isConditionLike(item.source));
+        let depth = 0;
+        incoming.forEach(item => {
+          depth = Math.max(depth, conditionDepth(item.source, stack) + 1);
+        });
+        stack.delete(node.id);
+        depth = Math.min(depth, 8);
+        depthMemo.set(node.id, depth);
+        return depth;
+      }
+
+      const reachableRankMemo = new Map();
+      function reachableDecisionRank(node) {
+        if (reachableRankMemo.has(node.id)) return reachableRankMemo.get(node.id);
+        if (semanticType(node) === "decision") {
+          const rank = decisionSeverityRank(node);
+          reachableRankMemo.set(node.id, rank);
+          return rank;
+        }
+        const seen = new Set([node.id]);
+        let frontier = [node];
+        let best = null;
+        for (let depth = 0; depth < 8 && frontier.length; depth += 1) {
+          const next = [];
+          frontier.forEach(current => {
+            (outgoingBySource.get(current.id) || []).forEach(item => {
+              const target = item.target;
+              if (seen.has(target.id)) return;
+              seen.add(target.id);
+              if (semanticType(target) === "decision") {
+                const rank = decisionSeverityRank(target);
+                best = best === null ? rank : Math.max(best, rank);
+              }
+              next.push(target);
+            });
+          });
+          frontier = next;
+        }
+        if (best === null) best = decisionSeverityRank(node);
+        reachableRankMemo.set(node.id, best);
+        return best;
+      }
+
+      const conditionNodes = visible.filter(isConditionLike);
+      const maxConditionDepth = Math.max(0, ...conditionNodes.map(node => conditionDepth(node)));
+      const decisionBase = maxConditionDepth + 1;
+      const actionBase = decisionBase + 3;
+
+      visible.forEach(node => {
+        const type = semanticType(node);
+        let stage = 0;
+        if (isConditionLike(node)) {
+          stage = conditionDepth(node);
+        } else if (type === "decision") {
+          stage = decisionBase + decisionSeverityRank(node);
+        } else if (type === "action") {
+          stage = actionBase;
+        } else if (type === "outcome") {
+          stage = actionBase + 1;
+        } else {
+          stage = decisionBase;
+        }
+        node.diagnosticStage = stage;
+        node.diagnosticBranch = reachableDecisionRank(node);
+      });
+
+      const columns = new Map();
+      visible.forEach(node => {
+        const key = node.diagnosticStage;
+        if (!columns.has(key)) columns.set(key, []);
+        columns.get(key).push(node);
+      });
+
+      const stages = Array.from(columns.keys()).sort((a, b) => a - b);
+      const colGap = 238;
+      const rowGap = 92;
+      const stageToX = new Map();
+      const totalWidth = Math.max(0, stages.length - 1) * colGap;
+      stages.forEach((stage, index) => {
+        stageToX.set(stage, index * colGap - totalWidth / 2);
+      });
+
+      const compareDiagnostic = (a, b) =>
+        (a.diagnosticBranch - b.diagnosticBranch) ||
+        (semanticTypeRank(a) - semanticTypeRank(b)) ||
+        (conditionDepth(a) - conditionDepth(b)) ||
+        (sourceOrder(a) - sourceOrder(b)) ||
+        nodeLabel(a).localeCompare(nodeLabel(b));
+
+      columns.forEach((columnNodes, stage) => {
+        columnNodes.sort(compareDiagnostic);
+        const height = Math.max(0, columnNodes.length - 1) * rowGap;
+        columnNodes.forEach((node, index) => {
+          node.x = stageToX.get(stage);
+          node.y = index * rowGap - height / 2;
+        });
+      });
+    }
+
+    function treeCandidate(edge) {
+      const source = edge.source;
+      const target = edge.target;
+      if (!source.visible || !target.visible || source === target) return null;
+
+      const skipParent = node => node.scope === "builtin" || node.scope === "imported_or_unresolved";
+      let parent = null;
+      let child = null;
+      let priority = 0;
+
+      if (["context_triggers", "context_blocks", "context_alternative", "context_suggests"].includes(edge.edgeKind)) {
+        parent = source;
+        child = target;
+        priority = 94;
+      } else if (["has_condition", "has_outcome", "has_alternative", "event_requires"].includes(edge.edgeKind)) {
+        parent = source;
+        child = target;
+        priority = edge.edgeKind === "event_requires" ? 88 : 82;
+      } else if (edge.edgeKind === "uses_context") {
+        parent = target;
+        child = source;
+        priority = 76;
+      } else if (edge.edgeKind === "grounded_in") {
+        parent = source;
+        child = target;
+        priority = 30;
+      } else if (["constructor_of", "field_of", "derived_instance_of", "generated_by"].includes(edge.edgeKind)) {
+        parent = target;
+        child = source;
+        priority = 100;
+      } else if (edge.edgeKind === "extends") {
+        parent = target;
+        child = source;
+        priority = 96;
+      } else if (edge.edgeKind === "derived_from") {
+        parent = target;
+        child = source;
+        priority = 90;
+      } else if (["has_prop_body", "has_prop_statement"].includes(edge.edgeKind)) {
+        parent = source;
+        child = target;
+        priority = 82;
+      } else if (["has_conjunct", "has_disjunct", "quantifies", "conditional_branch", "negates"].includes(edge.edgeKind)) {
+        parent = source;
+        child = target;
+        priority = 72;
+      } else if (["requires", "definition_mentions", "signature_mentions", "statement_mentions", "proof_mentions"].includes(edge.edgeKind)) {
+        parent = target;
+        child = source;
+        priority = edge.edgeKind === "statement_mentions" ? 78
+          : edge.edgeKind === "proof_mentions" ? 74
+            : edge.edgeKind === "requires" ? 70
+              : 64;
+      } else if (["uses_field", "uses_constructor", "field_type_mentions"].includes(edge.edgeKind)) {
+        parent = target;
+        child = source;
+        priority = 52;
+      } else if (edge.edgeKind === "covers_constructor") {
+        parent = target;
+        child = source;
+        priority = 42;
+      } else if (edge.edgeKind === "uses" && ["type", "field_type"].includes(edge.role || "")) {
+        parent = target;
+        child = source;
+        priority = 50;
+      } else if ([
+        "conditional_connects",
+        "has_alternative"
+      ].includes(edge.edgeKind)) {
+        parent = source;
+        child = target;
+        priority = 34;
+      }
+
+      if (!parent || !child || skipParent(parent)) return null;
+      return { parent, child, priority, edge };
+    }
+
+    function chooseHierarchyParents() {
+      const parentByChild = new Map();
+      edges.forEach(edge => {
+        if (!edge.visible) return;
+        const candidate = treeCandidate(edge);
+        if (!candidate) return;
+        const previous = parentByChild.get(candidate.child.id);
+        if (!previous || candidate.priority > previous.priority) {
+          parentByChild.set(candidate.child.id, candidate);
+        }
+      });
+      return parentByChild;
+    }
+
+    function computeLevels(parentByChild) {
+      const memo = new Map();
+      function levelOf(node, stack = new Set()) {
+        if (memo.has(node.id)) return memo.get(node.id);
+        if (stack.has(node.id)) {
+          const fallback = baseLevel(node);
+          memo.set(node.id, fallback);
+          return fallback;
+        }
+        stack.add(node.id);
+        const parentRecord = parentByChild.get(node.id);
+        let level = baseLevel(node);
+        if (parentRecord && parentRecord.parent.visible) {
+          level = Math.max(level, levelOf(parentRecord.parent, stack) + 1);
+        }
+        stack.delete(node.id);
+        level = Math.min(level, 18);
+        memo.set(node.id, level);
+        return level;
+      }
+      nodes.forEach(node => {
+        if (node.visible) node.hierarchyLevel = levelOf(node);
+      });
+    }
+
+    function layoutHierarchy() {
+      const parentByChild = chooseHierarchyParents();
+      computeLevels(parentByChild);
+
+      const visible = nodes.filter(node => node.visible);
+      visible.forEach(node => { node.sequenceLayout = false; });
+      const childrenByParent = new Map();
+      const childIds = new Set();
+
+      parentByChild.forEach((record, childId) => {
+        const child = nodeById.get(childId);
+        const parent = record.parent;
+        if (!child?.visible || !parent?.visible) return;
+        if ((parent.hierarchyLevel ?? 0) >= (child.hierarchyLevel ?? 0)) return;
+        if (!childrenByParent.has(parent.id)) childrenByParent.set(parent.id, []);
+        childrenByParent.get(parent.id).push(child);
+        childIds.add(child.id);
+      });
+
+      childrenByParent.forEach(children => {
+        children.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+      });
+
+      const roots = visible
+        .filter(node => !childIds.has(node.id))
+        .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+
+      const widthMemo = new Map();
+      function subtreeWidth(node) {
+        if (widthMemo.has(node.id)) return widthMemo.get(node.id);
+        const children = childrenByParent.get(node.id) || [];
+        const width = Math.max(1, children.reduce((sum, child) => sum + subtreeWidth(child), 0));
+        widthMemo.set(node.id, width);
+        return width;
+      }
+
+      const unitX = 154;
+      const rowGapY = 78;
+      const bandGapY = 72;
+      const top = 56;
+      let cursor = 0;
+
+      function assignSubtree(node, left, width) {
+        node.x = (left + width / 2) * unitX;
+        node.vx = 0;
+        node.vy = 0;
+
+        const children = childrenByParent.get(node.id) || [];
+        let childCursor = left;
+        children.forEach(child => {
+          const childWidth = subtreeWidth(child);
+          assignSubtree(child, childCursor, childWidth);
+          childCursor += childWidth;
+        });
+      }
+
+      roots.forEach(root => {
+        const width = subtreeWidth(root);
+        assignSubtree(root, cursor, width);
+        cursor += width + 0.8;
+      });
+
+      if (!visible.length) return;
+      const maxNodesPerRow = 18;
+      const layoutBand = node => ({
+        level: node.hierarchyLevel ?? baseLevel(node),
+        rank: kindRank(node)
+      });
+      const bandKey = band => `${band.level}|${band.rank}`;
+      const bands = Array.from(new Map(visible.map(node => {
+        const band = layoutBand(node);
+        return [bandKey(band), band];
+      })).values()).sort((a, b) => (a.level - b.level) || (a.rank - b.rank));
+      let currentY = top;
+
+      bands.forEach(band => {
+        const group = visible
+          .filter(node => bandKey(layoutBand(node)) === bandKey(band))
+          .sort((a, b) => (a.x - b.x) || sortKey(a).localeCompare(sortKey(b)));
+        const rows = [];
+        for (let i = 0; i < group.length; i += maxNodesPerRow) {
+          rows.push(group.slice(i, i + maxNodesPerRow));
+        }
+        rows.forEach((rowNodes, rowIndex) => {
+          const rowWidth = Math.max(1, rowNodes.length - 1) * unitX;
+          rowNodes.forEach((node, index) => {
+            node.x = index * unitX - rowWidth / 2;
+            node.y = currentY + rowIndex * rowGapY;
+          });
+        });
+        currentY += Math.max(1, rows.length) * rowGapY + bandGapY;
+      });
+
+      const minX = Math.min(...visible.map(node => node.x));
+      const maxX = Math.max(...visible.map(node => node.x));
+      const centerX = (minX + maxX) / 2;
+      visible.forEach(node => {
+        node.x -= centerX;
+      });
+    }
+
+    function layoutSequence() {
+      const visible = nodes.filter(node => node.visible);
+      visible.forEach(node => {
+        node.sequenceLayout = false;
+        node.x = 0;
+        node.y = 0;
+        node.vx = 0;
+        node.vy = 0;
+      });
+      if (!visible.length) return;
+
+      const grouped = new Map();
+      edges.forEach(edge => {
+        if (!edge.visible || !isSequenceEdge(edge)) return;
+        if (!edge.source.visible || !edge.target.visible) return;
+        const key = edge.sourceDecl || edge.sourceNode || `${edge.source.id}->${edge.target.id}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            key,
+            conditions: new Map(),
+            follows: new Map(),
+            edges: [],
+            order: Math.min(sourceOrder(edge.source), sourceOrder(edge.target))
+          });
+        }
+        const group = grouped.get(key);
+        group.conditions.set(edge.source.id, edge.source);
+        group.follows.set(edge.target.id, edge.target);
+        group.edges.push(edge);
+        group.order = Math.min(group.order, sourceOrder(edge.source), sourceOrder(edge.target));
+      });
+
+      const groups = Array.from(grouped.values())
+        .filter(group => group.conditions.size || group.follows.size)
+        .sort((a, b) => (a.order - b.order) || a.key.localeCompare(b.key));
+      const placed = new Set();
+      let currentY = 78;
+      const conditionGapY = 112;
+      const outcomeGapY = 116;
+      const groupGapY = 108;
+
+      groups.forEach(group => {
+        const conditions = Array.from(group.conditions.values())
+          .filter(node => node.visible)
+          .sort((a, b) => sourceOrder(a) - sourceOrder(b) || nodeLabel(a).localeCompare(nodeLabel(b)));
+        const follows = Array.from(group.follows.values())
+          .filter(node => node.visible)
+          .sort((a, b) =>
+            Number(b.probabilityPercent ?? -1) - Number(a.probabilityPercent ?? -1) ||
+            nodeLabel(a).localeCompare(nodeLabel(b))
+          );
+        if (!conditions.length && !follows.length) return;
+
+        const conditionRows = splitRows(conditions, 3);
+        conditionRows.forEach(row => {
+          assignSequenceRow(row, currentY);
+          row.forEach(node => placed.add(node.id));
+          currentY += conditionGapY;
+        });
+
+        const followRows = splitRows(follows, 4);
+        followRows.forEach(row => {
+          assignSequenceRow(row, currentY);
+          row.forEach(node => placed.add(node.id));
+          currentY += outcomeGapY;
+        });
+        currentY += groupGapY;
+      });
+
+      const leftovers = visible
+        .filter(node => !placed.has(node.id))
+        .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+      splitRows(leftovers, 4).forEach(row => {
+        assignSequenceRow(row, currentY);
+        currentY += outcomeGapY;
+      });
+    }
+
+    function layoutGraph(options = {}) {
+      if (shouldUseDiagnosticLayout()) {
+        layoutDiagnostic();
+      } else if (shouldUseSequenceLayout()) {
+        layoutSequence();
+      } else {
+        layoutHierarchy();
+      }
+      updatePositions();
+      if (options.fit !== false) fitView();
+    }
+
+    function renderElements() {
+      edgeLayer.innerHTML = "";
+      nodeLayer.innerHTML = "";
+      labelLayer.innerHTML = "";
+
+      edges.forEach(edge => {
+        const hit = document.createElementNS(ns, "line");
+        hit.classList.add("edge-hit");
+        hit.dataset.id = edge.id;
+        hit.addEventListener("click", event => {
+          event.stopPropagation();
+          selectEdge(edge);
+        });
+        edge.hitEl = hit;
+        edgeLayer.append(hit);
+
+        const line = document.createElementNS(ns, "line");
+        line.classList.add("edge", edge.layer || "hard");
+        line.dataset.id = edge.id;
+        line.setAttribute("stroke-width", edge.probabilityTarget ? "2.7" : "1.9");
+        line.setAttribute("marker-end", "url(#arrow)");
+        const title = document.createElementNS(ns, "title");
+        title.textContent = `${edgeLabel(edge)}\n${edge.src}\n${edge.dst}`;
+        line.append(title);
+        line.addEventListener("click", event => {
+          event.stopPropagation();
+          selectEdge(edge);
+        });
+        edge.el = line;
+        edgeLayer.append(line);
+
+        const relation = document.createElementNS(ns, "text");
+        relation.classList.add("edge-label");
+        relation.textContent = edgeLabel(edge);
+        relation.dataset.id = edge.id;
+        edge.labelEl = relation;
+        labelLayer.append(relation);
+      });
+
+      nodes.forEach(node => {
+        const group = document.createElementNS(ns, "g");
+        group.classList.add("node", safeClass(node.nodeKind || "unknown"));
+        if (node.eventType) group.classList.add(`event-${safeClass(node.eventType)}`);
+        if (node.objectKind) group.classList.add(`object-${safeClass(node.objectKind)}`);
+        if (node.semanticKind) group.classList.add(`semantic-${safeClass(node.semanticKind)}`);
+        group.dataset.id = node.id;
+        const circle = document.createElementNS(ns, "circle");
+        circle.setAttribute("r", radius(node));
+        const title = document.createElementNS(ns, "title");
+        title.textContent = `${nodeLabel(node)}\n${node.id}`;
+        group.append(circle, title);
+        group.addEventListener("pointerdown", event => {
+          event.stopPropagation();
+          draggingNode = node;
+          node.fixed = true;
+          group.setPointerCapture(event.pointerId);
+        });
+        group.addEventListener("click", event => {
+          event.stopPropagation();
+          openNode(node);
+        });
+        group.addEventListener("dblclick", event => {
+          event.stopPropagation();
+          openNode(node);
+        });
+        node.el = group;
+        nodeLayer.append(group);
+
+        const label = document.createElementNS(ns, "text");
+        label.classList.add("label");
+        label.textContent = nodeLabel(node);
+        label.dataset.id = node.id;
+        node.labelEl = label;
+        labelLayer.append(label);
+      });
+    }
+
+    function applyTransform() {
+      root.setAttribute("transform", `translate(${panX},${panY}) scale(${zoom})`);
+    }
+
+    function updatePositions() {
+      edges.forEach(edge => {
+        if (!edge.el) return;
+        edge.el.setAttribute("x1", edge.source.x);
+        edge.el.setAttribute("y1", edge.source.y);
+        edge.el.setAttribute("x2", edge.target.x);
+        edge.el.setAttribute("y2", edge.target.y);
+        if (edge.hitEl) {
+          edge.hitEl.setAttribute("x1", edge.source.x);
+          edge.hitEl.setAttribute("y1", edge.source.y);
+          edge.hitEl.setAttribute("x2", edge.target.x);
+          edge.hitEl.setAttribute("y2", edge.target.y);
+        }
+        if (edge.labelEl) {
+          edge.labelEl.setAttribute("x", (edge.source.x + edge.target.x) / 2);
+          edge.labelEl.setAttribute("y", (edge.source.y + edge.target.y) / 2 - 5);
+        }
+      });
+      nodes.forEach(node => {
+        if (node.el) node.el.setAttribute("transform", `translate(${node.x},${node.y})`);
+        if (node.labelEl) {
+          if (node.sequenceLayout) {
+            node.labelEl.setAttribute("x", node.x);
+            node.labelEl.setAttribute("y", node.y + radius(node) + 17);
+            node.labelEl.setAttribute("text-anchor", "middle");
+          } else {
+            node.labelEl.setAttribute("x", node.x + radius(node) + 4);
+            node.labelEl.setAttribute("y", node.y + 4);
+            node.labelEl.setAttribute("text-anchor", "start");
+          }
+        }
+      });
+    }
+
+    function matchesSearch(node, query) {
+      if (!query) return true;
+      const haystack = [
+        node.id,
+        node.name,
+        node.shortName,
+        node.label,
+        node.pretty,
+        node.description,
+        node.eventType,
+        node.fieldName,
+        node.declKind,
+        node.objectKind,
+        node.sourceText,
+        node.nodeKind
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(query);
+    }
+
+    function applyFilters() {
+      const query = search.value.trim().toLowerCase();
+      const kind = nodeKindSelect.value;
+      selectedNode = null;
+      selectedEdge = null;
+
+      nodes.forEach(node => {
+        const kindOk = kind === "all" || node.nodeKind === kind;
+        const domainOk = !domainOnly.checked || isDomainNode(node);
+        node.visible = nodeDefaultVisible(node) && kindOk && domainOk && matchesSearch(node, query);
+      });
+
+      edges.forEach(edge => {
+        edge.visible = edge.source.visible && edge.target.visible && edgeAllowedByControls(edge);
+      });
+
+      nodes.forEach(node => {
+        const connectedVisible = edges.some(edge => edge.visible && (edge.source === node || edge.target === node));
+        if (!query && !domainOnly.checked && kind === "all") {
+          node.visible = node.visible;
+        } else if (!connectedVisible && !isDomainNode(node) && domainOnly.checked) {
+          node.visible = false;
+        }
+      });
+
+      layoutGraph({ fit: true });
+      updateClasses();
+      updateStats();
+      viewHistory.length = 0;
+      updateBackState();
+      renderEmptyDetails();
+    }
+
+    function updateClasses() {
+      const activeIds = selectedNode
+        ? neighborhoodIds(selectedNode)
+        : selectedEdge
+          ? new Set([selectedEdge.source.id, selectedEdge.target.id])
+          : new Set();
+      edges.forEach(edge => {
+        edge.el.classList.toggle("hidden", !edge.visible);
+        if (edge.hitEl) edge.hitEl.classList.toggle("hidden", !edge.visible);
+        if (edge.labelEl) edge.labelEl.classList.toggle("hidden", !edge.visible || zoom < 0.36);
+        const active = edge.visible && (
+          edge === selectedEdge ||
+          (selectedNode && (edge.source === selectedNode || edge.target === selectedNode))
+        );
+        edge.el.classList.toggle("active", active);
+        edge.el.classList.toggle("dim", (selectedNode || selectedEdge) && edge.visible && !active);
+        if (edge.labelEl) edge.labelEl.classList.toggle("dim", (selectedNode || selectedEdge) && edge.visible && !active);
+      });
+      nodes.forEach(node => {
+        node.el.classList.toggle("hidden", !node.visible);
+        node.labelEl.classList.toggle("hidden", !node.visible || zoom < 0.42);
+        node.el.classList.toggle("active", selectedNode === node || (selectedEdge && (selectedEdge.source === node || selectedEdge.target === node)));
+        node.el.classList.toggle("dim", (selectedNode || selectedEdge) && node.visible && !activeIds.has(node.id));
+      });
+    }
+
+    function neighborhoodIds(node) {
+      const ids = new Set([node.id]);
+      edges.forEach(edge => {
+        if (!edge.visible) return;
+        if (edge.source === node) ids.add(edge.target.id);
+        if (edge.target === node) ids.add(edge.source.id);
+      });
+      return ids;
+    }
+
+    function connectedEdges(node) {
+      return edges.filter(edge => edge.source === node || edge.target === node);
+    }
+
+    function edgeFocusPriority(edge) {
+      if (["context_triggers", "context_blocks", "context_alternative", "context_suggests"].includes(edge.edgeKind)) return 92;
+      if (["has_condition", "has_outcome", "has_alternative", "event_requires"].includes(edge.edgeKind)) return 88;
+      if (["indicates", "classifies_as", "leads_to", "requires", "enables", "evidence_for", "refines"].includes(edge.relationKind || edge.edgeKind)) return 86;
+      if (["includes", "other"].includes(edge.relationKind || edge.edgeKind) && edge.layer === "semantic") return 72;
+      if (edge.edgeKind === "uses_context") return 72;
+      if (edge.edgeKind === "grounded_in") return 28;
+      if (["constructor_of", "field_of", "derived_instance_of", "generated_by"].includes(edge.edgeKind)) return 100;
+      if (edge.edgeKind === "extends") return 96;
+      if (edge.edgeKind === "derived_from") return 90;
+      if (["has_prop_body", "has_prop_statement"].includes(edge.edgeKind)) return 82;
+      if (["has_conjunct", "has_disjunct", "quantifies", "conditional_branch", "negates"].includes(edge.edgeKind)) return 72;
+      if (["implies", "equivalent_to", "enables", "requires", "blocks", "covers_constructor"].includes(edge.edgeKind)) return 58;
+      if (["statement_mentions", "definition_mentions", "signature_mentions", "field_type_mentions"].includes(edge.edgeKind)) return 54;
+      if (["uses_field", "uses_constructor", "conditional_connects", "has_alternative"].includes(edge.edgeKind)) return 50;
+      if (edge.edgeKind === "uses" && ["type", "field_type"].includes(edge.role || "")) return 54;
+      if (edge.edgeKind === "uses" && edge.role === "projection") return 52;
+      if (edge.edgeKind === "uses" && edge.role === "constructor_literal") return 48;
+      if (edge.edgeKind === "uses" && edge.role === "body") return 42;
+      if (edge.edgeKind === "uses" && edge.role === "statement") return 42;
+      if (edge.edgeKind === "proof_mentions") return 24;
+      if (edge.layer === "domain") return 36;
+      if (edge.layer === "logic") return 34;
+      return 20;
+    }
+
+    function focusNodeSet(root, maxDepth = 2, limit = 90) {
+      const ids = new Set([root.id]);
+      let frontier = [root.id];
+      const allowed = edges
+        .filter(edge => edgeAllowedByControls(edge))
+        .sort((a, b) => edgeFocusPriority(b) - edgeFocusPriority(a));
+
+      for (let depth = 0; depth < maxDepth && frontier.length && ids.size < limit; depth += 1) {
+        const frontierIds = new Set(frontier);
+        const next = [];
+        for (const edge of allowed) {
+          let other = null;
+          if (frontierIds.has(edge.source.id)) other = edge.target;
+          if (frontierIds.has(edge.target.id)) other = edge.source;
+          if (!other || ids.has(other.id)) continue;
+          ids.add(other.id);
+          next.push(other.id);
+          if (ids.size >= limit) break;
+        }
+        frontier = next;
+      }
+      return ids;
+    }
+
+    function selectNode(node) {
+      selectedNode = node;
+      selectedEdge = null;
+      updateClasses();
+      renderDetails(node);
+    }
+
+    function openNode(node, push = true) {
+      if (push) {
+        viewHistory.push(snapshotView());
+        updateBackState();
+      }
+      selectedNode = node;
+      selectedEdge = null;
+      search.value = "";
+      nodeKindSelect.value = "all";
+      const ids = focusNodeSet(node);
+      nodes.forEach(n => { n.visible = ids.has(n.id); });
+      edges.forEach(e => { e.visible = ids.has(e.source.id) && ids.has(e.target.id) && edgeAllowedByControls(e); });
+      layoutGraph({ fit: true });
+      updateClasses();
+      updateStats();
+      renderDetails(node);
+    }
+
+    function selectEdge(edge) {
+      selectedEdge = edge;
+      selectedNode = null;
+      updateClasses();
+      renderEdgeDetails(edge);
+    }
+
+    function nodeMetadataRows(node, incident, sourceLoc) {
+      if (node.nodeKind === "event") {
+        return [
+          kvRow("Event Type", node.eventType),
+          kvRow("Description", node.description),
+          kvRow("Confidence", node.confidence),
+          kvRow("Confidence Reason", node.confidenceReason),
+          kvRow("Source", sourceLoc),
+          kvRow("Degree", incident.length)
+        ].join("");
+      }
+      return `
+          ${kvRow("Kind", node.nodeKind)}
+          ${kvRow("Event Type", node.eventType)}
+          ${kvRow("Object", node.objectKind || node.declKind)}
+          ${kvRow("Semantic", node.semanticKind)}
+          ${kvRow("Role", node.eventRole)}
+          ${kvRow("Granularity", node.semanticGranularity)}
+          ${kvRow("Name", node.name || node.fullName)}
+          ${kvRow("Parent", node.parentObject)}
+          ${kvRow("Namespace", node.namespace)}
+          ${kvRow("Scope", node.scope)}
+          ${kvRow("Claim", node.claimLevel)}
+          ${kvRow("Evidence Kind", node.evidenceKind)}
+          ${kvRow("Probability Target", node.probabilityTarget)}
+          ${kvRow("Probability Percent", node.probabilityPercent)}
+          ${kvRow("Probability Estimate", node.probabilityEstimate)}
+          ${kvRow("Confidence", node.confidence)}
+          ${kvRow("Confidence Reason", node.confidenceReason)}
+          ${kvRow("Expression", node.sourceExpression)}
+          ${kvRow("Source", sourceLoc)}
+          ${kvRow("Degree", incident.length)}
+      `;
+    }
+
+    function renderDetails(node) {
+      const incident = connectedEdges(node);
+      const outgoing = incident.filter(edge => edge.source === node);
+      const incoming = incident.filter(edge => edge.target === node);
+      const sourceLoc = sourceLocation(node);
+      details.innerHTML = `
+        <h1>${escapeHtml(nodeLabel(node))}</h1>
+        <div class="sub">${escapeHtml(node.id)}</div>
+        <div class="kv">
+          ${nodeMetadataRows(node, incident, sourceLoc)}
+        </div>
+        ${sourceSection("Source", node.sourceText, sourceLoc)}
+        <div class="section-title">Outgoing</div>
+        <div class="pill-row">${edgePills(outgoing, "out")}</div>
+        <div class="section-title">Incoming</div>
+        <div class="pill-row">${edgePills(incoming, "in")}</div>
+        <div class="section-title">JSON</div>
+        <pre>${escapeHtml(JSON.stringify(node, replacerForNodeJson, 2))}</pre>
+      `;
+      details.querySelectorAll("[data-node]").forEach(el => {
+        el.addEventListener("click", () => {
+          const next = nodeById.get(el.getAttribute("data-node"));
+          if (next) openNode(next);
+        });
+      });
+    }
+
+    function replacerForNodeJson(key, value) {
+      if (["el", "labelEl", "vx", "vy", "x", "y", "visible", "fixed"].includes(key)) return undefined;
+      return value;
+    }
+
+    function renderEdgeDetails(edge) {
+      const edgeLoc = sourceLocation(edge);
+      const declLoc = sourceLocation(edge, "declarationSpan");
+      details.innerHTML = `
+        <h1>${escapeHtml(edgeLabel(edge))}</h1>
+        <div class="sub">${escapeHtml(edge.id)}</div>
+        <div class="kv">
+          ${kvRow("Layer", edge.layer)}
+          ${kvRow("Kind", edge.edgeKind)}
+          ${kvRow("Relation", edge.relationLabel || edge.relationRole || edge.role)}
+          ${kvRow("Relation Kind", edge.relationKind)}
+          ${kvRow("Description", edge.description)}
+          ${kvRow("Reference", edge.referenceRole)}
+          ${kvRow("Source Kind", edge.sourceKind)}
+          ${kvRow("Source Decl", edge.sourceDecl)}
+          ${kvRow("Claim", edge.claimLevel)}
+          ${kvRow("Evidence Kind", edge.evidenceKind)}
+          ${kvRow("Probability Target", edge.probabilityTarget)}
+          ${kvRow("Probability Percent", edge.probabilityPercent)}
+          ${kvRow("Probability Estimate", edge.probabilityEstimate)}
+          ${kvRow("Confidence", edge.confidence)}
+          ${kvRow("Confidence Reason", edge.confidenceReason)}
+          ${kvRow("Source", edgeLoc)}
+          ${kvRow("Expression", edge.sourceExpression)}
+          ${kvRow("Coverage Variable", edge.coverageVariable)}
+          ${kvRow("Coverage Type", edge.coverageType)}
+          ${kvRow("Evidence Text", edge.evidence)}
+          ${kvRow("Ambiguous", edge.ambiguous === undefined ? "" : edge.ambiguous)}
+          ${kvRow("Prior", edge.prior)}
+          ${kvRow("Posterior", edge.posterior)}
+        </div>
+        <div class="section-title">Endpoints</div>
+        <div class="pill-row">
+          <span class="pill" data-node="${escapeHtml(edge.source.id)}">src: ${escapeHtml(nodeLabel(edge.source))}</span>
+          <span class="pill" data-node="${escapeHtml(edge.target.id)}">dst: ${escapeHtml(nodeLabel(edge.target))}</span>
+        </div>
+        ${sourceSection("Edge Source", edge.sourceText, edgeLoc)}
+        ${sourceSection("Declaration Source", edge.declarationSource, declLoc)}
+        <div class="section-title">JSON</div>
+        <pre>${escapeHtml(JSON.stringify(edge, replacerForEdgeJson, 2))}</pre>
+      `;
+      details.querySelectorAll("[data-node]").forEach(el => {
+        el.addEventListener("click", () => {
+          const next = nodeById.get(el.getAttribute("data-node"));
+          if (next) openNode(next);
+        });
+      });
+    }
+
+    function replacerForEdgeJson(key, value) {
+      if (["el", "hitEl", "labelEl", "source", "target", "visible"].includes(key)) return undefined;
+      return value;
+    }
+
+    function edgePills(edgeList, direction) {
+      if (!edgeList.length) return `<span class="key">None</span>`;
+      return edgeList.slice(0, 60).map(edge => {
+        const other = direction === "out" ? edge.target : edge.source;
+        return `<span class="pill" data-node="${escapeHtml(other.id)}">${escapeHtml(edgeLabel(edge))}: ${escapeHtml(nodeLabel(other))}</span>`;
+      }).join("");
+    }
+
+    function renderEmptyDetails() {
+      details.innerHTML = `
+        <h1>${escapeHtml(graphData.metadata?.module || "Graph")}</h1>
+        <div class="sub">${escapeHtml(graphData.metadata?.sourceFile || "")}</div>
+        <div class="kv">
+          <div class="key">Events</div><div class="val">${nodes.length}</div>
+          <div class="key">Edges</div><div class="val">${edges.length}</div>
+          <div class="key">Mode</div><div class="val">${escapeHtml(graphData.metadata?.extractorMode || "")}</div>
+        </div>
+      `;
+    }
+
+    function updateStats() {
+      const visibleNodes = nodes.filter(n => n.visible).length;
+      const visibleEdges = edges.filter(e => e.visible).length;
+      stats.textContent = `${visibleNodes}/${nodes.length} events · ${visibleEdges}/${edges.length} relations`;
+    }
+
+    function fitView() {
+      const visible = nodes.filter(n => n.visible);
+      if (!visible.length) return;
+      const minX = Math.min(...visible.map(n => n.x));
+      const maxX = Math.max(...visible.map(n => n.x));
+      const minY = Math.min(...visible.map(n => n.y));
+      const maxY = Math.max(...visible.map(n => n.y));
+      const graphW = Math.max(1, maxX - minX);
+      const graphH = Math.max(1, maxY - minY);
+      zoom = Math.min(width() / (graphW + 160), height() / (graphH + 160), 2.2);
+      panX = width() / 2 - ((minX + maxX) / 2) * zoom;
+      panY = height() / 2 - ((minY + maxY) / 2) * zoom;
+      applyTransform();
+      updateClasses();
+    }
+
+    function resetView() {
+      selectedNode = null;
+      selectedEdge = null;
+      viewHistory.length = 0;
+      search.value = "";
+      nodeKindSelect.value = "all";
+      edgeLayerSelect.value = "all";
+      domainOnly.checked = false;
+      showEvidence.checked = false;
+      nodes.forEach(node => {
+        node.fixed = false;
+        node.visible = nodeDefaultVisible(node);
+      });
+      edges.forEach(edge => {
+        edge.visible = edge.source.visible && edge.target.visible && edgeAllowedByControls(edge);
+      });
+      zoom = 1;
+      panX = 0;
+      panY = 0;
+      applyTransform();
+      layoutGraph({ fit: true });
+      updateClasses();
+      updateStats();
+      updateBackState();
+      renderEmptyDetails();
+    }
+
+    function pointerToGraph(event) {
+      const rect = svg.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left - panX) / zoom,
+        y: (event.clientY - rect.top - panY) / zoom
+      };
+    }
+
+    svg.addEventListener("pointerdown", event => {
+      if (event.target.closest(".node") || event.target.closest(".edge")) return;
+      panning = true;
+      panStart = { x: event.clientX, y: event.clientY, panX, panY };
+      svg.classList.add("dragging");
+    });
+
+    svg.addEventListener("pointermove", event => {
+      if (draggingNode) {
+        const p = pointerToGraph(event);
+        draggingNode.x = p.x;
+        draggingNode.y = p.y;
+        draggingNode.vx = 0;
+        draggingNode.vy = 0;
+        updatePositions();
+        return;
+      }
+      if (panning && panStart) {
+        panX = panStart.panX + event.clientX - panStart.x;
+        panY = panStart.panY + event.clientY - panStart.y;
+        applyTransform();
+      }
+    });
+
+    window.addEventListener("pointerup", () => {
+      draggingNode = null;
+      panning = false;
+      svg.classList.remove("dragging");
+    });
+
+    svg.addEventListener("wheel", event => {
+      event.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const mx = event.clientX - rect.left;
+      const my = event.clientY - rect.top;
+      const graphX = (mx - panX) / zoom;
+      const graphY = (my - panY) / zoom;
+      const factor = event.deltaY < 0 ? 1.12 : 0.89;
+      zoom = Math.max(0.18, Math.min(4, zoom * factor));
+      panX = mx - graphX * zoom;
+      panY = my - graphY * zoom;
+      applyTransform();
+      updateClasses();
+    }, { passive: false });
+
+    search.addEventListener("input", applyFilters);
+    nodeKindSelect.addEventListener("change", applyFilters);
+    edgeLayerSelect.addEventListener("change", applyFilters);
+    domainOnly.addEventListener("change", applyFilters);
+    showEvidence.addEventListener("change", applyFilters);
+    backBtn.addEventListener("click", backView);
+    homeBtn.addEventListener("click", resetView);
+    window.addEventListener("resize", () => {
+      layoutGraph({ fit: true });
+    });
+
+    buildDegree();
+    populateFilters();
+    renderElements();
+    resetView();
+  </script>
+</body>
+</html>
