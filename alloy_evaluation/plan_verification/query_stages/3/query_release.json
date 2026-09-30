@@ -1,0 +1,19 @@
+{
+  "query": "A real situation reported on a pool parents' forum: an elementary-school-aged boy failed our swim test (he was 'unable to tread water or swim to the side of the pool from the diving board'). The pool manager has told his parents the boy must wear a life jacket and that a parent must be in the water with him. The parents are angry and say the pool is 'interfering with their parenting decisions.'",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": true,
+  "released_attempt": 1,
+  "extension": [],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Strengthened",
+      "drift": false,
+      "released": true,
+      "reason": "released"
+    }
+  ]
+}

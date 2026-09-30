@@ -1,0 +1,12 @@
+{
+  "attempt": 2,
+  "extension": [
+    "deckClearanceOrdered: Facility -> lone Bool -- the pool manager has ordered everyone off the pool deck",
+    "patronObjecting: Patron -> lone Bool -- the patron is pushing back against the requirement"
+  ],
+  "equivalent": true,
+  "nli_category": "Related",
+  "drift": false,
+  "released": true,
+  "reason": "released"
+}

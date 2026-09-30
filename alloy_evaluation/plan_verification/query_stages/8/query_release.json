@@ -1,0 +1,55 @@
+{
+  "query": "At our facility, a patron is at the entrance with a cooler containing outside food and an alcoholic drink.",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": true,
+  "released_attempt": 2,
+  "extension": [
+    "entrance: Facility -> lone Patron -- the entrance of the facility where the patron is",
+    "cooler: Patron -> lone Patron -- the cooler a patron carries",
+    "containsOutsideFood: Patron -> lone Int -- whether the cooler holds outside food",
+    "containsAlcohol: Patron -> lone Int -- whether the cooler holds an alcoholic drink"
+  ],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Contradiction",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Contradiction",
+      "diagnosis": {
+        "cause": "VOCABULARY",
+        "missing": "the patron is at the entrance with a cooler containing outside food and an alcoholic drink — the vocabulary has no notion of entrance, cooler, outside food, or alcoholic drink.",
+        "closest": "Patron has carriesContraband (Bool) and inWater/onDeck, but no field for location at an entrance, nor any signature for a cooler, food, or drink; Facility has zones, pumpRoom, and various flags, but no entrance and no container/food/drink signatures.",
+        "declarations": [
+          "entrance: Facility -> lone Entrance -- the entrance of the facility where the patron is",
+          "cooler: Patron -> lone Cooler -- the cooler a patron carries",
+          "containsOutsideFood: Cooler -> lone Bool -- whether the cooler holds outside food",
+          "containsAlcohol: Cooler -> lone Bool -- whether the cooler holds an alcoholic drink"
+        ]
+      },
+      "extension_added": [
+        "entrance: Facility -> lone Patron -- the entrance of the facility where the patron is",
+        "cooler: Patron -> lone Patron -- the cooler a patron carries",
+        "containsOutsideFood: Patron -> lone Int -- whether the cooler holds outside food",
+        "containsAlcohol: Patron -> lone Int -- whether the cooler holds an alcoholic drink"
+      ]
+    },
+    {
+      "attempt": 2,
+      "extension": [
+        "entrance: Facility -> lone Patron -- the entrance of the facility where the patron is",
+        "cooler: Patron -> lone Patron -- the cooler a patron carries",
+        "containsOutsideFood: Patron -> lone Int -- whether the cooler holds outside food",
+        "containsAlcohol: Patron -> lone Int -- whether the cooler holds an alcoholic drink"
+      ],
+      "equivalent": true,
+      "nli_category": "Equivalent",
+      "drift": false,
+      "released": true,
+      "reason": "released"
+    }
+  ]
+}

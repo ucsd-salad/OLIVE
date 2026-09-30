@@ -1,0 +1,19 @@
+{
+  "query": "Today a family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they'll 'watch from the edge.'",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": true,
+  "released_attempt": 1,
+  "extension": [],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Strengthened",
+      "drift": false,
+      "released": true,
+      "reason": "released"
+    }
+  ]
+}

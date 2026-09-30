@@ -1,0 +1,122 @@
+{
+  "query": "A family is at our facility entrance. Their son recently had diarrhea, and he is feeling fine now.",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": false,
+  "released_attempt": null,
+  "extension": [
+    "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+    "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent",
+    "parentOf: Patron -> lone Adult -- the adult who is this patron's parent",
+    "healthyNow: set Patron -- the patrons who are currently feeling well"
+  ],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Unrelated",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Unrelated",
+      "diagnosis": {
+        "cause": "VOCABULARY",
+        "missing": "The user says the family's son recently had diarrhea and is now feeling fine — a patron's recent diarrheal illness and current wellness. The vocabulary has `hasGIIllnessWithin14Days` but no field for \"feeling fine now\" / current wellness, and no way to state the son's relationship to the family (child of the adults) beyond `chaperoneAdult`.",
+        "closest": "`Patron.hasGIIllnessWithin14Days` covers the recent diarrhea; `Patron.chaperoneAdult` links a patron to an adult but does not express \"their son\"; no field on `Patron`/`Adult` expresses current wellness (\"feeling fine now\").",
+        "declarations": [
+          "feelsFineNow: Patron -> lone Bool -- whether the patron is currently feeling well",
+          "isChildOf: Patron -> set Adult -- the adults who are this patron's parents"
+        ]
+      },
+      "extension_added": [
+        "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+        "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent"
+      ]
+    },
+    {
+      "attempt": 2,
+      "extension": [
+        "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+        "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent"
+      ],
+      "equivalent": true,
+      "nli_category": "Unrelated",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Unrelated",
+      "diagnosis": {
+        "cause": "VOCABULARY",
+        "missing": "the son is a child of the adult (parent relationship) and is currently feeling fine — the readback does contain these via QueryExt, but the vocabulary lacks a way to say the son is a child (age < 18 is present, but \"son\"/child-of relation is only in the extension). Actually the missing statement is that the patron is the family's son, i.e. a child of the adult — expressible only via QueryExt.isChildOf, which is an extension word, not protocol vocabulary.",
+        "closest": "Patron.age (can say <18 but not \"son of\"), Adult has no child field, Patron has no parent field; chaperoneAdult is a supervision relation, not parentage. No protocol field expresses parent/child or \"feeling fine now\".",
+        "declarations": [
+          "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent",
+          "feelsFineNow: set Patron -- the patrons who are currently feeling well"
+        ]
+      },
+      "extension_added": [
+        "parentOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "healthyNow: set Patron -- the patrons who are currently feeling well"
+      ]
+    },
+    {
+      "attempt": 3,
+      "extension": [
+        "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+        "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "parentOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "healthyNow: set Patron -- the patrons who are currently feeling well"
+      ],
+      "equivalent": true,
+      "nli_category": "Unrelated",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Unrelated",
+      "diagnosis": {
+        "cause": "TRANSLATION",
+        "missing": "The user said the family's son is a child (under 18) whose parent is present, and that he had diarrhea recently but feels fine now; the readback keeps the illness and feeling-fine facts but the formalization's `s.age < 18` and `s.(QueryExt.isChildOf) = a` are the only child/parent encoding, and the readback's \"adult is the patron's parent\" matches `isChildOf` only if that field means parent — the mismatch is that the readback says \"the adult is the patron's parent\" while the formalization uses `isChildOf`, and the NLI flagged the whole thing as unrelated, i.e. the translation changed the parent relation direction/name.",
+        "closest": "`QueryExt.isChildOf: Patron -> lone Adult` and `QueryExt.parentOf: Patron -> lone Adult` both exist; `Patron.age` exists; `Patron.hasGIIllnessWithin14Days` exists; `QueryExt.feelsFineNow`/`healthyNow` exist. All the needed words are present, so this is not a vocabulary gap.",
+        "declarations": []
+      }
+    },
+    {
+      "attempt": 4,
+      "extension": [
+        "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+        "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "parentOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "healthyNow: set Patron -- the patrons who are currently feeling well"
+      ],
+      "equivalent": true,
+      "nli_category": "Contradiction",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Contradiction",
+      "diagnosis": {
+        "cause": "TRANSLATION",
+        "missing": "The user said the son is a child of the adult (their son), and that the son had diarrhea recently but feels fine now. The readback says the patron has had a gastrointestinal illness within the past 14 days — the user only said diarrhea, and the readback dropped the parent-child relationship (the adult is the son's parent, not merely a chaperone).",
+        "closest": "The vocabulary has `isChildOf`/`parentOf` (Patron -> Adult) and `feelsFineNow`/`healthyNow` (set Patron), plus `hasGIIllnessWithin14Days`. The translation used `chaperoneAdult` instead of the parent relation, and generalized \"diarrhea\" to \"gastrointestinal illness within 14 days.\"",
+        "declarations": []
+      }
+    },
+    {
+      "attempt": 5,
+      "extension": [
+        "feelsFineNow: set Patron -- the patrons who are currently feeling well",
+        "isChildOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "parentOf: Patron -> lone Adult -- the adult who is this patron's parent",
+        "healthyNow: set Patron -- the patrons who are currently feeling well"
+      ],
+      "equivalent": true,
+      "nli_category": "Contradiction",
+      "drift": true,
+      "released": false,
+      "reason": "NLI drift: Contradiction",
+      "diagnosis": {
+        "cause": "TRANSLATION",
+        "missing": "The user said the son is a child of the adults (their son), i.e. a parent-child relationship between the patron and the adult; the readback only says the adult is the patron's chaperone, not that the adult is the patron's parent.",
+        "closest": "The vocabulary does have `isChildOf`/`parentOf` in QueryExt, and `chaperoneAdult` on Patron, so the parent relation is expressible; the translation used `chaperoneAdult` instead of the parent relation.",
+        "declarations": []
+      }
+    }
+  ]
+}

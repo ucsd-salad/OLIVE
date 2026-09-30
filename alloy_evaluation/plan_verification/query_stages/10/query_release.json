@@ -1,0 +1,19 @@
+{
+  "query": "A real first-hand freediver post on DeeperBlue describes losing consciousness within seconds after '10+ big fast breaths' before going underwater. At our pool, a teenager tells his friends he is going to 'set a personal record,' performs about 10 rapid deep breaths on the deck, then tries to swim a full underwater lap.",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": true,
+  "released_attempt": 1,
+  "extension": [],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Strengthened",
+      "drift": false,
+      "released": true,
+      "reason": "released"
+    }
+  ]
+}

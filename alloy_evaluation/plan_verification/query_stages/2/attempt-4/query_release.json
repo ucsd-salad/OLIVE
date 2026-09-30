@@ -1,0 +1,13 @@
+{
+  "attempt": 4,
+  "extension": [
+    "submergedIn: Patron -> lone WaterZone -- the zone in which the patron went under water (face-first submersion)",
+    "spaMinimumAge: Spa -> lone Int -- the posted minimum age (years) for the spa",
+    "patronAgeMonths: Patron -> lone Int -- patron age in months, for infants under 1 year"
+  ],
+  "equivalent": true,
+  "nli_category": "Strengthened",
+  "drift": false,
+  "released": true,
+  "reason": "released"
+}

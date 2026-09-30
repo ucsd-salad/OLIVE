@@ -1,0 +1,19 @@
+{
+  "query": "Documented news incident at a real community pool: a 13-year-old boy at Old Orchard Park community pool in Frisco, Texas dove head-first into the SHALLOW END of the pool (trying to flee a wasp), struck the bottom, fractured his C4 and C5 vertebrae, and was left without motor or sensory function below the level of injury (now described as quadriplegic). Imagine the same scenario at OUR facility: a teenage patron performs a head-first dive into the shallow zone of one of our pools.",
+  "protocol": "/Users/junhao/Desktop/lean tptl/lean/alloy_evaluation/plan_verification/safety_protocol.als",
+  "protocol_sha256": "49c05051790798e07fa97b9eda2c3c6c755a5c23de4c978c83c6cb7dbe4361ca",
+  "released": true,
+  "released_attempt": 1,
+  "extension": [],
+  "attempts": [
+    {
+      "attempt": 1,
+      "extension": [],
+      "equivalent": true,
+      "nli_category": "Strengthened",
+      "drift": false,
+      "released": true,
+      "reason": "released"
+    }
+  ]
+}
