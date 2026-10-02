@@ -399,9 +399,25 @@ def run_experiment(prompts: list[dict[str, Any]], args: argparse.Namespace) -> d
     for rep in range(1, args.reps + 1):
         print(f"\n========== independent pipeline run {rep}/{args.reps} ==========", flush=True)
         for prompt in prompts:
-            per_prompt[str(prompt["id"])]["runs"].append(run_sample(prompt, rep, args))
+            record = run_sample(prompt, rep, args)
+            per_prompt[str(prompt["id"])]["runs"].append(record)
             write_json(args.out_dir / "stage_passk_log.json", make_payload(args, per_prompt))
+            require_valid_infrastructure(record)
     return make_payload(args, per_prompt)
+
+
+def require_valid_infrastructure(run: dict[str, Any]) -> None:
+    failed = run.get("plan_status") == "ERROR"
+    failed = failed or any(sample.get("final_status") == "ERROR"
+                           for key in ("syntax_samples", "logic_samples")
+                           for sample in run.get(key, []))
+    failed = failed or any(attempt.get("reason", "").startswith("NLI unavailable:")
+                           for attempt in run.get("query_attempts", []))
+    if failed:
+        raise ValueError(
+            f"Infrastructure error in prompt {run.get('prompt_id', '?')}, "
+            f"run {run.get('rep', '?')}; saved data is preserved, but pass@k "
+            "cannot be computed until these samples are rerun with working dependencies.")
 
 
 def chen_curve(successes: list[bool], k_values: list[int]) -> list[float | None]:
@@ -431,6 +447,8 @@ def compute_metrics(payload: dict[str, Any]) -> dict[str, Any]:
 
     for pid, data in payload["per_prompt"].items():
         runs = data["runs"]
+        for run in runs:
+            require_valid_infrastructure(run)
         prompt_info = {"id": data["id"], "category": data["category"]}
 
         roundtrip_curve = chen_curve([bool(run["query_released"]) for run in runs], k_full)

@@ -446,6 +446,17 @@ def ensure_compare_file(protocol=None, scope=None, rebuild=True, verbose=True,
 protocol_rules = pm.protocol_rules
 
 
+def compile_alloy_runner():
+    """Build portable Java 17 bytecode; return an error message or an empty string."""
+    try:
+        result = subprocess.run(
+            ["javac", "--release", "17", "-cp", JAR, "AlloyCommandline.java"],
+            cwd=JAVA_DIR, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return str(error)
+    return (result.stderr or result.stdout or "javac failed") if result.returncode else ""
+
+
 def run_alloy(file_path, *, syntax_only=False):
     """Run every command in the verifier file; returns (compiled, output, status).
 
@@ -466,14 +477,18 @@ def run_alloy(file_path, *, syntax_only=False):
 
     # compile if needed: missing, or older than its source (a stale class would
     # silently keep the previous output format and verdict rules)
-    if (not os.path.exists(CLASS_FILE)
-            or os.path.getmtime(CLASS_FILE) < os.path.getmtime(JAVA_FILE)):
-        compile_cmd = ["javac", "-cp", JAR, "AlloyCommandline.java"]
-        result = subprocess.run(
-            compile_cmd, cwd=JAVA_DIR, capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            return False, result.stderr, "ERROR"
+    needs_compile = not os.path.exists(CLASS_FILE)
+    if not needs_compile:
+        with open(CLASS_FILE, "rb") as f:
+            header = f.read(8)
+        # Class-file major 61 is Java 17; newer binaries may come from another host.
+        needs_compile = (len(header) != 8 or header[:4] != b"\xca\xfe\xba\xbe"
+                         or int.from_bytes(header[6:8], "big") > 61
+                         or os.path.getmtime(CLASS_FILE) < os.path.getmtime(JAVA_FILE))
+    if needs_compile:
+        error = compile_alloy_runner()
+        if error:
+            return False, error, "ERROR"
 
     run_cmd = ["java", "-cp", "." + os.pathsep + JAR, "AlloyCommandline", file_path, *rules]
     if syntax_only:

@@ -2,6 +2,8 @@
 
 import tempfile
 import unittest
+import os
+import sys
 import httpx
 from math import comb
 from pathlib import Path
@@ -10,6 +12,58 @@ from unittest.mock import MagicMock, patch
 
 import pipeline_generated as pipeline
 import stage_passk_evaluator as evaluator
+import pipeline as roundtrip
+
+
+def fake_sdk(**constructors):
+    exceptions = {name: type(name, (Exception,), {}) for name in (
+        "RateLimitError", "APIConnectionError", "APITimeoutError",
+        "InternalServerError", "APIStatusError")}
+    return SimpleNamespace(**constructors, **exceptions)
+
+
+class RoundtripProviderTests(unittest.TestCase):
+    def test_claude_uses_anthropic_key_and_messages_api(self):
+        client = MagicMock()
+        client.messages.create.return_value = SimpleNamespace(content=[
+            SimpleNamespace(type="thinking"), SimpleNamespace(type="text", text="first"),
+            SimpleNamespace(type="text", text="second")])
+        constructor = MagicMock(return_value=client)
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=True), \
+                patch.dict(sys.modules, {"anthropic": fake_sdk(Anthropic=constructor)}):
+            llm = roundtrip.LLM("claude-test")
+            text = llm.complete("system instructions", "user input",
+                                temperature=0.7, max_tokens=100)
+        self.assertEqual(text, "first\nsecond")
+        constructor.assert_called_once_with(api_key="test-key", timeout=180)
+        client.messages.create.assert_called_once_with(
+            model="claude-test", system="system instructions",
+            messages=[{"role": "user", "content": "user input"}],
+            temperature=0.7, max_tokens=100)
+
+    def test_claude_missing_key_fails_before_client_creation(self):
+        constructor = MagicMock()
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.dict(sys.modules, {"anthropic": fake_sdk(Anthropic=constructor)}):
+            with self.assertRaisesRegex(roundtrip.PipelineError, "ANTHROPIC_API_KEY"):
+                roundtrip.LLM("claude-test")
+        constructor.assert_not_called()
+
+    def test_non_claude_models_and_mixed_judges_are_rejected(self):
+        with self.assertRaisesRegex(roundtrip.PipelineError, "Claude"):
+            roundtrip.Settings(model="deepseek-chat")
+        with self.assertRaisesRegex(roundtrip.PipelineError, "same Claude model"):
+            roundtrip.Settings(model="claude-test", judge_model="claude-other")
+
+    def test_completion_cannot_switch_models(self):
+        constructor = MagicMock()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}, clear=True), \
+                patch.dict(sys.modules, {"anthropic": fake_sdk(Anthropic=constructor)}):
+            llm = roundtrip.LLM("claude-test")
+            with self.assertRaisesRegex(roundtrip.PipelineError, "same Claude model"):
+                llm.complete("system", "user", temperature=0.7, max_tokens=100,
+                             model="claude-other")
+        constructor.return_value.messages.create.assert_not_called()
 
 
 @unittest.skipUnless(Path(pipeline.JAR).exists(), "Set ALLOY_JAR to an Alloy distribution JAR")
@@ -90,6 +144,42 @@ class PlanVerificationTests(unittest.TestCase):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_infrastructure_errors_are_not_scored_as_model_failures(self):
+        for record in ({"plan_status": "ERROR"},
+                       {"syntax_samples": [{"final_status": "ERROR"}]},
+                       {"logic_samples": [{"final_status": "ERROR"}]},
+                       {"query_attempts": [{"reason": "NLI unavailable: missing dependency"}]}):
+            with self.subTest(record=record), self.assertRaisesRegex(ValueError, "Infrastructure error"):
+                evaluator.require_valid_infrastructure(record)
+        evaluator.require_valid_infrastructure({"plan_status": "UNSAFE"})
+        evaluator.require_valid_infrastructure({"plan_status": "TIMEOUT"})
+
+    def test_metrics_refuse_an_infrastructure_error_sample(self):
+        payload = {"config": {"pass_kmax": 1, "reps": 1, "stage_samples": 1},
+                   "per_prompt": {"3": {"id": 3, "category": "test", "runs": [
+                       {"rep": 1, "plan_status": "ERROR", "query_released": True,
+                        "full_success": False}]}}}
+        with self.assertRaisesRegex(ValueError, "Infrastructure error"):
+            evaluator.compute_metrics(payload)
+
+    def test_java_compiler_targets_portable_bytecode(self):
+        with patch.object(pipeline.subprocess, "run", return_value=SimpleNamespace(
+                returncode=0, stdout="", stderr="")) as compile_call:
+            self.assertEqual(pipeline.compile_alloy_runner(), "")
+        self.assertEqual(compile_call.call_args.args[0][:3], ["javac", "--release", "17"])
+
+    def test_newer_java_bytecode_is_recompiled_even_with_newer_timestamp(self):
+        class_file = self.root / "runner.class"
+        class_file.write_bytes(b"\xca\xfe\xba\xbe\x00\x00\x00\x45")
+        with patch.object(pipeline, "CLASS_FILE", str(class_file)), \
+                patch.object(pipeline, "JAVA_FILE", str(self.compare)), \
+                patch.object(pipeline, "compile_alloy_runner", return_value="") as compile_call, \
+                patch.object(pipeline.subprocess, "run", return_value=SimpleNamespace(
+                    returncode=0, stdout="COMPILED: GeneratedPlan", stderr="")):
+            _, _, status = pipeline.run_alloy(str(self.compare), syntax_only=True)
+        self.assertEqual(status, "COMPILED")
+        compile_call.assert_called_once_with()
+
     def test_prompt_selection(self):
         args = evaluator.parse_args(["--prompt-ids", "3"])
         prompts = evaluator.load_prompts(args.prompts, args.prompt_ids)
@@ -160,6 +250,7 @@ class EvaluationTests(unittest.TestCase):
     def test_alloy_timeout_returns_a_failed_verification(self):
         with patch.object(pipeline, "CLASS_FILE", str(self.compare)), \
                 patch.object(pipeline, "JAVA_FILE", str(self.compare)), \
+                patch.object(pipeline, "compile_alloy_runner", return_value=""), \
                 patch.object(pipeline.subprocess, "run",
                              side_effect=pipeline.subprocess.TimeoutExpired("java", 120)):
             compiled, _, status = pipeline.run_alloy(str(self.compare))

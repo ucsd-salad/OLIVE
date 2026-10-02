@@ -81,6 +81,19 @@ def preflight(*, dry_run: bool) -> List[str]:
     if not (os.path.exists(pipeline.CLASS_FILE) or os.path.exists(pipeline.JAVA_FILE)):
         problems.append(
             f"Neither AlloyCommandline.class nor AlloyCommandline.java found in {pipeline.JAVA_DIR}")
+    if os.path.exists(pipeline.JAR) and os.path.exists(pipeline.JAVA_FILE):
+        error = pipeline.compile_alloy_runner()
+        if error:
+            problems.append(f"Cannot compile Alloy runner for Java 17: {error}")
+        else:
+            try:
+                probe = subprocess.run(
+                    ["java", "-cp", "." + os.pathsep + pipeline.JAR, "AlloyCommandline"],
+                    cwd=pipeline.JAVA_DIR, capture_output=True, text=True, timeout=10)
+                if probe.returncode:
+                    problems.append(f"Cannot load Alloy runner: {probe.stderr or probe.stdout}")
+            except (OSError, subprocess.TimeoutExpired) as error:
+                problems.append(f"Cannot load Alloy runner: {error}")
 
     return problems
 

@@ -1,1 +1,3810 @@
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I can identify the violations:
+
+1. **NoProhibitedF**: `DivingInShallowWater in p.currentBehaviors` requires `no p.inWater`, but the plan sets `p.inWater = sz`. The protocol says diving in shallow water is prohibited — the patron must be removed from the water.
+
+2. **HighRiskF**: The counterexample has `participatesInHighRiskActivity` unconstrained, allowing it to be True without proper certs.
+
+3. **MedicalClearanceF**: `hasHighRiskMedicalCondition` unconstrained, allowing True without clearance/buddy.
+
+4. **CodeAdamF**: `codeAdamActive` unconstrained on the facility.
+
+The core issue: the plan places the patron IN the shallow zone while having `DivingInShallowWater` behavior, which the protocol explicitly forbids. The correct plan must show the patron was caught diving, the lifeguard intervenes, and the patron is removed from water. Head-first dives are only permitted in DivingArea zones (depth ≥ 108 inches / 9 ft).
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    no p.inWater and
+    p.onDeck = True and
+    sz in f.zones and
+    p.wristband = Green and
+    p.strikes = 1 and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0 and
+    p.permanentBan = False and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    p.participatesInHighRiskActivity = False and
+    p.hasHighRiskMedicalCondition = False and
+    no p.inWaterBuddy and
+    no p.drowningStage and
+    no p.medicalClearance and
+    no p.supplementaryWaiver and
+    p.isRegisteredAthlete = False and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.depthInches < 108 and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.codeAdamActive = False and
+    no f.activeBiohazardIncident and
+    f.superChlorinationInProgress = False and
+    f.chloramineOdorExceedsLimit = False and
+    f.sunGlareAffectingZones = False and
+    f.sanctionedPracticeActive = False and
+    chemicalsSafe[f.chemicalReadings] and
+    pumpRoomSafe[f.pumpRoom]
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all p2: Patron | p2.wristband = Blue implies p2.isRegisteredAthlete = True
+  all p2: Patron | p2.participatesInHighRiskActivity = True implies (some p2.supplementaryWaiver and HighRiskActivityCert in p2.highRiskCertifications)
+  all p2: Patron | p2.hasHighRiskMedicalCondition = True implies some p2.medicalClearance
+  all f2: Facility | f2.windSpeed > 35 implies f2.outdoorElevatedStructuresOpen = False
+  all f2: Facility | f2.windSpeed > 50 implies f2.outdoorFullyEvacuated = True
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the call to `chemicalsSafe[f.chemicalReadings]` and `pumpRoomSafe[f.pumpRoom]` with their concrete constraints inlined. I also need to ensure the `rule` query's situation facts are preserved (the patron is age 13, has DivingInShallowWater behavior, and `p.inWater = sz` where sz is a ShallowZone). But the protocol says `DivingInShallowWater in p.currentBehaviors implies no p.inWater` — so the rule's situation where the patron IS in the shallow zone represents the violation being caught. The plan must show the lifeguard intervening: the patron gets removed from water (strike issued), and the behavior is prohibited.
+
+Wait — the `rule` predicate requires `p.inWater = sz`. But `NoProhibitedF` requires that if `DivingInShallowWater in p.currentBehaviors` then `no p.inWater`. These are contradictory, so `PlanPossible` (which requires both `GeneratedPlan` and `rule`) will never find an instance if I enforce `no p.inWater`. The plan must preserve the rule's situation facts including `p.inWater = sz`. So the plan must show the protocol-violating state (the patron IS in the shallow zone diving) and the response to it — but cannot assert protocol compliance for that patron's prohibited behavior. Instead, the plan should show the disciplinary/intervention response.
+
+Let me set the patron in the water (matching the rule), with strike = 1 (verbal warning for the diving behavior), and the lifeguard responding.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    p.inWater = sz and
+    p.onDeck = False and
+    sz in f.zones and
+    p.wristband = Green and
+    p.strikes = 1 and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0 and
+    p.permanentBan = False and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    p.participatesInHighRiskActivity = False and
+    p.hasHighRiskMedicalCondition = False and
+    no p.inWaterBuddy and
+    no p.drowningStage and
+    no p.medicalClearance and
+    no p.supplementaryWaiver and
+    p.isRegisteredAthlete = False and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.depthInches < 108 and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.codeAdamActive = False and
+    no f.activeBiohazardIncident and
+    f.superChlorinationInProgress = False and
+    f.chloramineOdorExceedsLimit = False and
+    f.sunGlareAffectingZones = False and
+    f.sanctionedPracticeActive = False and
+    f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    f.chemicalReadings.orpHundredMV >= 7 and
+    f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and
+    f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and
+    f.chemicalReadings.cyanuricAcid <= 50 and
+    f.pumpRoom.locked = True and
+    f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    f.pumpRoom.separateContainmentBerms = True and
+    f.pumpRoom.authorizedAccessOnly = True and
+    no f.pumpRoom.occupants
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all p2: Patron | p2.wristband = Blue implies p2.isRegisteredAthlete = True
+  all p2: Patron | p2.participatesInHighRiskActivity = True implies (some p2.supplementaryWaiver and HighRiskActivityCert in p2.highRiskCertifications)
+  all p2: Patron | p2.hasHighRiskMedicalCondition = True implies some p2.medicalClearance
+  all f2: Facility | f2.windSpeed > 35 implies f2.outdoorElevatedStructuresOpen = False
+  all f2: Facility | f2.windSpeed > 50 implies f2.outdoorFullyEvacuated = True
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, the violation is `NoProhibitedF`, which requires:
+
+```
+(DivingInShallowWater in p.currentBehaviors) implies no p.inWater
+```
+
+The current plan has `p.inWater = sz` AND `DivingInShallowWater in p.currentBehaviors` simultaneously, which directly violates this rule. The protocol prohibits diving in shallow water — if a patron is exhibiting that behavior, they must NOT be in the water.
+
+The correct plan must model the scenario where the patron *was observed* diving into the shallow end, the lifeguard intervenes, and the patron is removed from the water. Head-first dives are only permitted in DivingArea zones (depth ≥ 108 inches / 9 feet). The lifeguard must issue a whistle blast (strike 1 verbal warning) and remove the patron from the water.
+
+```
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    no p.inWater and
+    p.onDeck = True and
+    sz in f.zones and
+    p.wristband = Green and
+    p.strikes = 1 and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0 and
+    p.permanentBan = False and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    p.participatesInHighRiskActivity = False and
+    p.hasHighRiskMedicalCondition = False and
+    no p.inWaterBuddy and
+    no p.drowningStage and
+    no p.medicalClearance and
+    no p.supplementaryWaiver and
+    p.isRegisteredAthlete = False and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    lg.inEAPResponse = False and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.depthInches < 108 and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.codeAdamActive = False and
+    no f.activeBiohazardIncident and
+    f.superChlorinationInProgress = False and
+    f.chloramineOdorExceedsLimit = False and
+    f.sunGlareAffectingZones = False and
+    f.sanctionedPracticeActive = False and
+    f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    f.chemicalReadings.orpHundredMV >= 7 and
+    f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and
+    f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and
+    f.chemicalReadings.cyanuricAcid <= 50 and
+    f.pumpRoom.locked = True and
+    f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    f.pumpRoom.separateContainmentBerms = True and
+    f.pumpRoom.authorizedAccessOnly = True and
+    no f.pumpRoom.occupants
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all p2: Patron | (DivingInShallowWater in p2.currentBehaviors) implies no p2.inWater
+  all p2: Patron | p2.wristband = Blue implies p2.isRegisteredAthlete = True
+  all p2: Patron | p2.participatesInHighRiskActivity = True implies (some p2.supplementaryWaiver and HighRiskActivityCert in p2.highRiskCertifications)
+  all p2: Patron | p2.hasHighRiskMedicalCondition = True implies some p2.medicalClearance
+  all f2: Facility | f2.windSpeed > 35 implies f2.outdoorElevatedStructuresOpen = False
+  all f2: Facility | f2.windSpeed > 50 implies f2.outdoorFullyEvacuated = True
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix several issues:
+
+1. **NoProhibitedF**: `DivingInShallowWater` in behaviors implies `no p.inWater` — the patron must be OUT of water. The plan must reflect the post-intervention state.
+2. **DisciplineF**: Strike 1 doesn't require timeout, but strike=1 with `inTimeOut` unset is fine. The real issue is the patron is in water with a prohibited behavior.
+3. **BlueBandF**: The counterexample assigned Blue wristband — need to constrain wristband to Green.
+4. **FacilityCapacityF, FacilityOperationalF, PumpRoomF, WindF, SlideF, RedBandRatioF**: Unconstrained atoms in the world. Must constrain all facilities, zones, adults, etc.
+
+The key insight: the protocol says `DivingInShallowWater in behaviors implies no p.inWater`. The plan must show the patron AFTER intervention — removed from water, with the behavior recorded and a strike issued.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    no p.inWater and
+    no p.drowningStage and
+    sz in f.zones and
+    sz.patronCount >= 0 and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    p.strikes = 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.carriesContraband = False and
+    p.onDeck = True and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0
+  all p: Patron | p.carriesContraband = False
+  all p: Patron | no (p.currentBehaviors & (ProlongedBreathHolding + Hyperventilation + Horseplay + RunningOnDeck + BridgeJumping + PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+  all p: Patron | (DivingInShallowWater in p.currentBehaviors) implies no p.inWater
+  all p: Patron | p.permanentBan = True implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes >= 3 implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes = 2 implies (p.inTimeOut = True and no p.inWater and p.timeOutMinutesRemaining > 0 and p.timeOutMinutesRemaining <= 15)
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all f: Facility | facilityCapacityValid[f]
+  all f: Facility | f.powerOn = True and f.fireAlarmActive = False and f.mainDrainVisible = True and f.airQualitySafe = True and f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+  all f: Facility | chemicalsSafe[f.chemicalReadings]
+  all f: Facility | f.lastManualTestMinutesAgo <= 120
+  all f: Facility | pumpRoomSafe[f.pumpRoom]
+  all f: Facility | f.windSpeed <= 35
+  all ws: WaterSlide | slideDispatchSafe[ws]
+  all p: Patron | (p.wristband = Blue) implies p.isRegisteredAthlete = True
+  all p: Patron, f: Facility | (p.wristband = Blue and some p.inWater and p.inWater in f.zones) implies f.sanctionedPracticeActive = True
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  no BiohazardIncident
+  no Spa
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the call to `facilityCapacityValid[f]` with its concrete constraints expanded inline. Let me also review the plan for any other predicate invocations that need inlining (`chemicalsSafe`, `pumpRoomSafe`, `slideDispatchSafe`).
+
+The `rule` predicate requires `p.inWater = sz`, but the protocol's `noProhibitedBehaviors` requires that if `DivingInShallowWater` is in a patron's behaviors, then `no p.inWater`. These contradict, so `PlanPossible { GeneratedPlan and rule }` must have no instance — meaning the plan correctly shows this behavior is NOT permitted. The plan must preserve the query's situation facts (age=13, DivingInShallowWater behavior, shallow zone exists) but enforce that the patron is NOT in water due to the protocol violation.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    no p.inWater and
+    no p.drowningStage and
+    sz in f.zones and
+    sz.patronCount >= 0 and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.minutesSinceRotation >= 0 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    p.strikes = 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.carriesContraband = False and
+    p.onDeck = True and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0
+  all p: Patron | p.carriesContraband = False
+  all p: Patron | no (p.currentBehaviors & (ProlongedBreathHolding + Hyperventilation + Horseplay + RunningOnDeck + BridgeJumping + PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+  all p: Patron | (DivingInShallowWater in p.currentBehaviors) implies no p.inWater
+  all p: Patron | p.permanentBan = True implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes >= 3 implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes = 2 implies (p.inTimeOut = True and no p.inWater and p.timeOutMinutesRemaining > 0 and p.timeOutMinutesRemaining <= 15)
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all f: Facility | f.currentBatherCount <= f.maxBatherLoad and f.currentBatherCount <= f.fireCapacity and f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+  all f: Facility | (f.currentBatherCount.plus[f.maxBatherLoad.div[20]] >= f.maxBatherLoad) implies f.turnstileLocked = True
+  all f: Facility | f.powerOn = True and f.fireAlarmActive = False and f.mainDrainVisible = True and f.airQualitySafe = True and f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+  all f: Facility | f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and f.chemicalReadings.combinedChlorineTenthPPM <= 4 and f.chemicalReadings.orpHundredMV >= 7 and f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and f.chemicalReadings.cyanuricAcid <= 50
+  all f: Facility | f.lastManualTestMinutesAgo <= 120
+  all f: Facility | f.pumpRoom.locked = True and f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and f.pumpRoom.separateContainmentBerms = True and f.pumpRoom.authorizedAccessOnly = True
+  all f: Facility | (some f.pumpRoom.occupants) implies f.pumpRoom.ppeWornByOccupants = True
+  all f: Facility | all s: f.pumpRoom.occupants | (CPOCert in s.certifications) or (s in FacilityManager and AFOCert in s.certifications)
+  all f: Facility | f.windSpeed <= 35
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all p: Patron | (p.wristband = Blue) implies p.isRegisteredAthlete = True
+  all p: Patron, f: Facility | (p.wristband = Blue and some p.inWater and p.inWater in f.zones) implies f.sanctionedPracticeActive = True
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  no BiohazardIncident
+  no Spa
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, the issue is with `f.currentBatherCount.plus[f.maxBatherLoad.div[20]]` - I need to avoid calling integer arithmetic functions that are part of the safety specification and instead state concrete constraints directly.
+
+For the 95% turnstile lockout rule, I'll handle it by simply constraining the turnstile state directly rather than computing the threshold.
+
+I also need to address the `QueryViolation` check: the query `rule` requires `p.inWater = sz` (patron IS in the shallow zone), but my plan says `no p.inWater`. The plan must preserve the query's situation facts. The query states the patron is in the shallow zone performing DivingInShallowWater - this is the situation we must describe. The protocol says this behavior means the patron must be removed from water (strike/intervention). So I need to show the patron in the shallow zone with the behavior, AND show the required disciplinary/intervention response.
+
+Re-reading: `QueryViolation` checks `GeneratedPlan and not rule` - if this finds an instance, it means the plan permits worlds without the query's facts. I need to ensure the plan always includes the query facts. But the protocol says `DivingInShallowWater implies no p.inWater` - so the plan can't satisfy both protocol and query simultaneously. The plan should show the situation (patron in shallow zone diving) and the required response (strike, removal from water as the corrective action). The patron starts with the behavior; the plan must note this is prohibited and what must happen.
+
+Since the query places the patron in water with the prohibited behavior, and the protocol forbids this, the plan should reflect the situation and mandate intervention - meaning the plan shows this IS a violation and the lifeguard must act.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.inWater = sz and
+    sz in f.zones and
+    no p.drowningStage and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation >= 0 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.patronCount >= 1 and
+    p.strikes >= 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.carriesContraband = False and
+    p.onDeck = False and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0
+  all p: Patron | no (p.currentBehaviors & (ProlongedBreathHolding + Hyperventilation + Horseplay + RunningOnDeck + BridgeJumping + PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+  all p: Patron | p.carriesContraband = False
+  all p: Patron | p.permanentBan = True implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes >= 3 implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes = 2 implies (p.inTimeOut = True and no p.inWater and p.timeOutMinutesRemaining > 0 and p.timeOutMinutesRemaining <= 15)
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all f: Facility | f.currentBatherCount <= f.maxBatherLoad and f.currentBatherCount <= f.fireCapacity and f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+  all f: Facility | f.powerOn = True and f.fireAlarmActive = False and f.mainDrainVisible = True and f.airQualitySafe = True and f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+  all f: Facility | f.lastManualTestMinutesAgo <= 120
+  all f: Facility | f.windSpeed <= 35
+  all f: Facility | f.pumpRoom.locked = True and f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and f.pumpRoom.separateContainmentBerms = True and f.pumpRoom.authorizedAccessOnly = True
+  all f: Facility | (some f.pumpRoom.occupants) implies f.pumpRoom.ppeWornByOccupants = True
+  all f: Facility | all s: f.pumpRoom.occupants | (CPOCert in s.certifications) or (s in FacilityManager and AFOCert in s.certifications)
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  no BiohazardIncident
+  no Spa
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix several issues:
+
+1. **NoProhibitedF**: `DivingInShallowWater` in behaviors implies `no p.inWater` — the protocol **prohibits** this patron from being in water. The plan must remove them from water (the dive is NOT permitted).
+2. **FacilityOperationalF**: Chemical readings not constrained — need `chemicalsSafe`.
+3. **HighRiskF**: Patron has `participatesInHighRiskActivity = True` but no waiver — need to constrain this.
+4. **HealthF**: Health fields (GI illness, open wounds, shower) left as `lone` — need to set them for in-water patrons.
+5. **AirQualityF**: `chloramineOdorExceedsLimit` unconstrained.
+6. **CodeAdamF**: `codeAdamActive` unconstrained.
+
+The key insight: diving in shallow water is **prohibited**. The patron must be removed from water (strike issued, lifeguard intervenes). Head-first dives are only permitted in DivingArea zones (≥9ft depth).
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    no p.inWater and
+    sz in f.zones and
+    no p.drowningStage and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    p.strikes >= 1 and
+    p.strikes < 3 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.carriesContraband = False and
+    p.onDeck = True and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0
+  all p: Patron | (DivingInShallowWater in p.currentBehaviors) implies no p.inWater
+  all p: Patron | no (p.currentBehaviors & (ProlongedBreathHolding + Hyperventilation + Horseplay + RunningOnDeck + BridgeJumping + PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+  all p: Patron | p.carriesContraband = False
+  all p: Patron | p.permanentBan = True implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes >= 3 implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes = 2 implies (p.inTimeOut = True and no p.inWater and p.timeOutMinutesRemaining > 0 and p.timeOutMinutesRemaining <= 15)
+  all p: Patron | (some p.inWater) implies (p.hasGIIllnessWithin14Days = False and p.hasOpenWounds = False and p.tookShowerWithSoap = True)
+  all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)
+  all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all lg: Lifeguard | lg.onDuty = True implies (LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications and lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False and lg.physicallyMentallyReady = True and lg.passedLastAudit = True and lg.auditResponseSeconds <= 10 and lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30 and lg.inServiceTrainingHoursMonth >= 4)
+  all f: Facility | f.currentBatherCount <= f.maxBatherLoad and f.currentBatherCount <= f.fireCapacity and f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+  all f: Facility | f.powerOn = True and f.fireAlarmActive = False and f.mainDrainVisible = True and f.airQualitySafe = True and f.lightningDetected = False and f.lastThunderMinutesAgo > 30 and f.codeAdamActive = False and f.chloramineOdorExceedsLimit = False and f.windSpeed <= 35 and f.sunGlareAffectingZones = False
+  all f: Facility | f.lastManualTestMinutesAgo <= 120
+  all f: Facility | chemicalsSafe[f.chemicalReadings]
+  all f: Facility | f.pumpRoom.locked = True and f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and f.pumpRoom.separateContainmentBerms = True and f.pumpRoom.authorizedAccessOnly = True
+  all f: Facility | (some f.pumpRoom.occupants) implies f.pumpRoom.ppeWornByOccupants = True
+  all f: Facility | all s: f.pumpRoom.occupants | (CPOCert in s.certifications) or (s in FacilityManager and AFOCert in s.certifications)
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  no BiohazardIncident
+  no Spa
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the call to `chemicalsSafe[f.chemicalReadings]` with its concrete constraints inlined. Let me also review the plan for correctness.
+
+The key issue from the verifier: I'm calling `chemicalsSafe` which is a protocol predicate. I need to inline its constraints directly.
+
+I also need to ensure the plan satisfies `rule` (which requires `p.inWater = sz`, meaning the patron IS in the shallow zone). But the protocol's `noProhibitedBehaviors` says `DivingInShallowWater in p.currentBehaviors implies no p.inWater`. This means the query describes a protocol violation - the patron is diving in shallow water. The plan must preserve the situation facts from `rule` (patron age 13, doing DivingInShallowWater, inWater = sz). The plan should show the lifeguard intervention (strike/discipline) while the violation is occurring, and show where dives ARE permitted (DivingArea with depth >= 108 inches).
+
+Since `rule` requires `p.inWater = sz`, I cannot set `no p.inWater` for that patron. The plan must allow that situation fact. This means CounterExample will find a protocol violation (which is expected - the behavior IS prohibited). The plan should still be feasible with `rule`.
+
+```alloy
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.inWater = sz and
+    sz in f.zones and
+    no p.drowningStage and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    p.strikes >= 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.carriesContraband = False and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    lg.inEAPResponse = False
+  all p: Patron | no (p.currentBehaviors & (ProlongedBreathHolding + Hyperventilation + Horseplay + RunningOnDeck + BridgeJumping + PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+  all p: Patron | p.carriesContraband = False
+  all p: Patron | p.permanentBan = True implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes >= 3 implies (no p.inWater and p.onDeck != True)
+  all p: Patron | p.strikes = 2 implies (p.inTimeOut = True and no p.inWater and p.timeOutMinutesRemaining > 0 and p.timeOutMinutesRemaining <= 15)
+  all p: Patron | (some p.inWater) implies (p.hasGIIllnessWithin14Days = False and p.hasOpenWounds = False and p.tookShowerWithSoap = True)
+  all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)
+  all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all lg: Lifeguard | lg.onDuty = True implies (LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications and lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False and lg.physicallyMentallyReady = True and lg.passedLastAudit = True and lg.auditResponseSeconds <= 10 and lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30 and lg.inServiceTrainingHoursMonth >= 4)
+  all f: Facility | f.currentBatherCount <= f.maxBatherLoad and f.currentBatherCount <= f.fireCapacity and f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+  all f: Facility | f.powerOn = True and f.fireAlarmActive = False and f.mainDrainVisible = True and f.airQualitySafe = True and f.lightningDetected = False and f.lastThunderMinutesAgo > 30 and f.codeAdamActive = False and f.chloramineOdorExceedsLimit = False and f.windSpeed <= 35 and f.sunGlareAffectingZones = False
+  all f: Facility | f.lastManualTestMinutesAgo <= 120
+  all f: Facility | f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and f.chemicalReadings.combinedChlorineTenthPPM <= 4 and f.chemicalReadings.orpHundredMV >= 7 and f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and f.chemicalReadings.cyanuricAcid <= 50
+  all f: Facility | f.pumpRoom.locked = True and f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and f.pumpRoom.separateContainmentBerms = True and f.pumpRoom.authorizedAccessOnly = True
+  all f: Facility | (some f.pumpRoom.occupants) implies f.pumpRoom.ppeWornByOccupants = True
+  all f: Facility | all s: f.pumpRoom.occupants | (CPOCert in s.certifications) or (s in FacilityManager and AFOCert in s.certifications)
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  no BiohazardIncident
+  no Spa
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix several issues:
+
+1. **NoProhibitedF**: `DivingInShallowWater in currentBehaviors` implies `no p.inWater` — the plan has the patron in water, which is the violation being caught. The plan must show the patron removed from water (the post-intervention state).
+2. **DisciplineF**: Strike 1 doesn't require time-out, but the patron with `p.inWater = sz` and strike 1 is fine — the real issue is the prohibited behavior requires removal from water.
+3. **BlueBandF**: Patron got Blue wristband but facility didn't have sanctioned practice. Need to constrain wristband.
+4. **FacilityCapacityF, FacilityOperationalF, SlideF, PumpRoomF, WindF, RedBandRatioF**: Unconstrained atoms. Need universal constraints.
+
+The key insight: the situation describes the patron *attempting* a dive. The protocol response is to **remove them from water**. The plan must show the post-intervention state where the patron is OUT of water but still has the behavior flagged, with strike 1 applied.
+
+But `rule` requires `p.inWater = sz`. So the plan must preserve that fact. Yet `NoProhibitedF` forbids it. This means the plan must show a protocol violation exists (the patron IS violating) and the lifeguard's required response. The plan should be protocol-compliant for everything *except* the patron's violation — we need to ensure no *other* violations leak in.
+
+Since `rule` forces `p.inWater = sz` and `DivingInShallowWater in p.currentBehaviors`, `NoProhibitedF` will always be violated. The plan captures the moment of violation and required response. I must close all OTHER protocol violations.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    p.inWater = sz and
+    sz in f.zones and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    sz.assignedGuard = lg and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    lg.zoneFullyVisualized = True and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    p.strikes = 1 and
+    p.inTimeOut != True and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    no p.drowningStage and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    chemicalsSafe[f.chemicalReadings] and
+    pumpRoomSafe[f.pumpRoom] and
+    sz.hasDivingBoard != True and
+    sz.isDeepEnd != True
+  all da: DivingArea |
+    da.depthInches >= 108 and
+    da.personsOnApparatus <= 1 and
+    da.previousDiverSurfaced = True and
+    da.previousDiverReachedWall = True
+  all ws: WaterSlide |
+    ws.splashdownClearByBottomGuard = True and
+    ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+  all p2: Patron | p2.wristband = Blue implies (p2.isRegisteredAthlete = True and (some p2.inWater implies (some fac: Facility | p2.inWater in fac.zones and fac.sanctionedPracticeActive = True)))
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier result, I need to replace the call to `chemicalsSafe` and `pumpRoomSafe` with their concrete constraints inlined. I also need to analyze the core issue: the protocol's `noProhibitedBehaviors` predicate says that if `DivingInShallowWater` is in a patron's behaviors, they must NOT be in water (`no p.inWater`). But the query's `rule` predicate places the patron IN the shallow zone with that behavior. This means the plan must show this is a protocol VIOLATION — the patron is doing something prohibited, and the lifeguard must intervene with a strike/discipline response. The patron cannot remain in water while exhibiting `DivingInShallowWater`.
+
+The plan should: (1) preserve the situation facts (age=13, DivingInShallowWater behavior, was in shallow zone), (2) show the lifeguard's intervention (whistle, strike issued), and (3) show the patron removed from water per protocol. Head-first dives ARE permitted only in DivingArea zones (depth ≥ 108 inches / 9ft).
+
+Since the query requires `p.inWater = sz`, and the protocol requires `no p.inWater` when `DivingInShallowWater` is present, the plan must demonstrate CounterExample (unsafe) — showing the violation. Let me re-read: the plan should show what the protocol REQUIRES, meaning the patron must be removed from water. But `rule` requires `p.inWater = sz`. So the plan must satisfy `rule` in PlanPossible but also show the intervention. The conflict means the plan captures the moment of violation with the lifeguard responding.
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    p.inWater = sz and
+    sz in f.zones and
+    sz.hasDivingBoard != True and
+    sz.isDeepEnd != True and
+    sz.depthInches <= 60 and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.assignedGuard = lg and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    p.strikes >= 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    no p.drowningStage and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.chemicalReadings.facTenthPPM >= 15 and
+    f.chemicalReadings.facTenthPPM <= 50 and
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    f.chemicalReadings.orpHundredMV >= 7 and
+    f.chemicalReadings.pHTenth >= 72 and
+    f.chemicalReadings.pHTenth <= 78 and
+    f.chemicalReadings.totalAlkalinity >= 80 and
+    f.chemicalReadings.totalAlkalinity <= 120 and
+    f.chemicalReadings.cyanuricAcid <= 50
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix four violated rules:
+
+1. **NoProhibitedF**: `DivingInShallowWater in p.currentBehaviors` implies `no p.inWater`. The current plan has the patron IN the shallow zone WITH this behavior, which violates the protocol. The protocol says diving in shallow water is prohibited — the patron must be removed from the water.
+
+2. **DisciplineF**: `p.strikes >= 1` allows strikes=2 or 3, which triggers time-out/ejection requirements that conflict with being in water. Need `p.strikes = 1` (verbal warning, Strike 1).
+
+3. **FacilityCapacityF**: Need to constrain the 95% turnstile lockout properly.
+
+4. **PumpRoomF**: Need pump room safety constraints.
+
+The key insight: the protocol **prohibits** diving in shallow water. The patron performed this behavior, so the lifeguard must intervene — the patron must be removed from water and given a disciplinary strike. Head-first dives are only permitted in the DivingArea (depth ≥ 108 inches / 9 feet).
+
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    no p.inWater and
+    p.onDeck = True and
+    sz in f.zones and
+    sz.isDeepEnd != True and
+    sz.hasDivingBoard != True and
+    sz.depthInches <= 60 and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.assignedGuard = lg and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    p.strikes = 1 and
+    p.permanentBan = False and
+    p.inTimeOut = False and
+    p.timeOutMinutesRemaining = 0 and
+    p.wristband = Green and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    no p.drowningStage and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    (f.currentBatherCount.plus[f.maxBatherLoad.div[20]] >= f.maxBatherLoad) implies f.turnstileLocked = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    f.chemicalReadings.orpHundredMV >= 7 and
+    f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and
+    f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and
+    f.chemicalReadings.cyanuricAcid <= 50 and
+    f.pumpRoom.locked = True and
+    f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    f.pumpRoom.separateContainmentBerms = True and
+    f.pumpRoom.authorizedAccessOnly = True and
+    no f.pumpRoom.occupants
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, the issue is with the line using `.plus` and `.div` for the turnstile lockout calculation. I need to replace that with concrete constraints that don't invoke integer arithmetic functions from the safety specification.
+
+Additionally, I need to ensure the plan preserves the `rule` predicate's situation facts. The `rule` says `p.inWater = sz` (patron IS in the shallow zone), but the current plan says `no p.inWater`. This contradicts the query - the plan must preserve the fact that the patron is in the shallow water. However, the protocol says `DivingInShallowWater in p.currentBehaviors implies no p.inWater` (noProhibitedBehaviors). This means the scenario as described IS a protocol violation - the patron is doing something prohibited. The plan should reflect the lifeguard's intervention (strike/discipline) while keeping the situation facts from the query.
+
+Since the query states `p.inWater = sz`, I must preserve that. The plan shows this IS a violation, and the lifeguard must intervene with discipline. The protocol will be violated (diving in shallow water while in water), which is the point - the plan documents the violation and the required response.
+
+Let me also fix the `QueryViolation` issue: the plan must always satisfy the `rule` predicate.
+
+```alloy
+pred GeneratedPlan {
+  some p: Patron, sz: ShallowZone, f: Facility, lg: Lifeguard |
+    p.age = 13 and
+    DivingInShallowWater in p.currentBehaviors and
+    p.currentBehaviors = DivingInShallowWater and
+    p.inWater = sz and
+    sz in f.zones and
+    sz.isDeepEnd != True and
+    sz.hasDivingBoard != True and
+    sz.depthInches <= 60 and
+    sz.fullyVisualized = True and
+    sz.patronCount <= 25 and
+    sz.assignedGuard = lg and
+    lg.onDuty = True and
+    lg.assignedZone = sz and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.zoneFullyVisualized = True and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    no lg.relievedBy and
+    p.strikes >= 1 and
+    p.permanentBan = False and
+    p.wristband = Green and
+    p.hasGIIllnessWithin14Days = False and
+    p.hasOpenWounds = False and
+    p.tookShowerWithSoap = True and
+    p.carriesContraband = False and
+    no p.drowningStage and
+    f.powerOn = True and
+    f.fireAlarmActive = False and
+    f.mainDrainVisible = True and
+    f.airQualitySafe = True and
+    f.lightningDetected = False and
+    f.lastThunderMinutesAgo > 30 and
+    f.windSpeed <= 35 and
+    f.currentBatherCount <= f.maxBatherLoad and
+    f.currentBatherCount <= f.fireCapacity and
+    f.shallowAreaRatioCompliant = True and
+    f.deepAreaRatioCompliant = True and
+    f.lastManualTestMinutesAgo <= 120 and
+    f.chemicalReadings.facTenthPPM >= 15 and f.chemicalReadings.facTenthPPM <= 50 and
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    f.chemicalReadings.orpHundredMV >= 7 and
+    f.chemicalReadings.pHTenth >= 72 and f.chemicalReadings.pHTenth <= 78 and
+    f.chemicalReadings.totalAlkalinity >= 80 and f.chemicalReadings.totalAlkalinity <= 120 and
+    f.chemicalReadings.cyanuricAcid <= 50 and
+    f.pumpRoom.locked = True and
+    f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    f.pumpRoom.separateContainmentBerms = True and
+    f.pumpRoom.authorizedAccessOnly = True and
+    no f.pumpRoom.occupants
+  all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+  all a: Adult | a.supervisedRedBandCount <= 3
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, manager: FacilityManager, pool: WaterZone, shallow: ShallowZone, facility: Facility, guard: Lifeguard |
+
+    // === Situation facts (from the TASK / rule) ===
+
+    // elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11 and
+
+    // he failed the swim test
+    boy in QueryExt.failedSwimTest.True and
+
+    // the parent is his chaperone
+    boy.chaperoneAdult = parent and
+
+    // the pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True and
+
+    // a parent must be in the water with him
+    parent.inWaterSupervising = True and
+
+    // the pool has a diving board (referenced in the scenario)
+    pool.hasDivingBoard = True and
+
+    // the manager is on duty
+    manager.onDuty = True and
+
+    // === Band assignment: failed swim test => Red wristband ===
+    boy.wristband = Red and
+
+    // === Red band access: boy restricted to shallow zone at or below armpit depth ===
+    boy.inWater = shallow and
+    shallow in facility.zones and
+    shallow.depthInches <= boy.armpitHeightInches and
+
+    // === Boy is denied access to the diving board / deep end ===
+    boy.inWater != pool and
+    boy.inWater.hasDivingBoard != True and
+    boy.inWater.isDeepEnd != True and
+
+    // === Arm's reach supervision required (Red band, age < 12) ===
+    parent.withinArmsReachOfWard = True and
+    parent.supervisedRedBandCount >= 1 and
+    parent.supervisedRedBandCount <= 3 and
+
+    // === USCG life jacket is mandatory (manager's directive) ===
+    // (already set above via wearsUSCGLifeJacket = True)
+
+    // === Boy has no prohibited behaviors, no contraband, meets hygiene ===
+    no boy.currentBehaviors and
+    boy.carriesContraband = False and
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+
+    // === Boy has no discipline issues ===
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+
+    // === Zone is guarded by a qualified, fit, on-duty lifeguard ===
+    guard.onDuty = True and
+    guard.assignedZone = shallow and
+    shallow.assignedGuard = guard and
+    LifeguardCert in guard.certifications and
+    CPR_AED_Cert in guard.certifications and
+    FirstAidCert in guard.certifications and
+    guard.consumedAlcoholWithinTwelveHrs = False and
+    guard.onDrowsyMedication = False and
+    guard.physicallyMentallyReady = True and
+    guard.passedLastAudit = True and
+    guard.auditResponseSeconds <= 10 and
+    guard.eyesOnWater = True and
+    guard.hasRescueTube = True and
+    guard.visualScanWithinTenSec = True and
+    guard.canReachZoneInTwentySec = True and
+    guard.minutesSinceRotation >= 0 and
+    guard.minutesSinceRotation <= 30 and
+    guard.inServiceTrainingHoursMonth >= 4 and
+
+    // === Zone visibility and capacity ===
+    shallow.fullyVisualized = True and
+    shallow.patronCount <= 25 and
+    shallow.patronCount >= 1 and
+
+    // === Manager qualifications ===
+    (CPOCert in manager.certifications or AFOCert in manager.certifications) and
+
+    // === Enforcement: parental objections do not override facility safety rules ===
+    // The protocol's wristband, life jacket, and supervision requirements are
+    // non-negotiable. The boy may swim only under all stated conditions.
+    // Refusal to comply means the boy cannot enter the water (UntestedF / RedBandF).
+
+    // === Facility is operational ===
+    facility.powerOn = True and
+    facility.fireAlarmActive = False and
+    facility.mainDrainVisible = True and
+    facility.airQualitySafe = True and
+    facility.lightningDetected = False and
+    facility.lastThunderMinutesAgo > 30
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    // === SITUATION FACTS (matching the formal query) ===
+
+    // The boy is elementary-school-aged
+    boy.age >= 5 and boy.age <= 11 and
+
+    // He failed the swim test
+    boy in QueryExt.passedSwimTest.False and
+
+    // The diving board zone exists in the facility
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+
+    // The parents dispute the safety requirements
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+
+    // The facility manager who made the determination is on duty
+    fm.onDuty = True and
+
+    // === PLAN: BAND ASSIGNMENT ===
+
+    // Boy failed the swim test: assign Red wristband (restricted to shallow/armpit depth)
+    boy.wristband = Red and
+
+    // === PLAN: LIFE JACKET REQUIREMENT ===
+
+    // Boy must wear a USCG-approved life jacket at all times in water
+    boy.wearsUSCGLifeJacket = True and
+
+    // === PLAN: SUPERVISION REQUIREMENTS ===
+
+    // One parent is designated chaperone and must be in water within arm's reach
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+
+    // Red band ratio: parent supervises at most 3 red-band wearers
+    (boy.chaperoneAdult).supervisedRedBandCount <= 3 and
+
+    // === PLAN: ZONE RESTRICTIONS ===
+
+    // Boy is restricted to shallow zone only (Red band rule)
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+
+    // Boy is NOT permitted in the diving area (Red band prohibition)
+    boy.inWater not in DivingArea and
+    boy.inWater.isDeepEnd != True and
+
+    // === PLAN: ZONE GUARDING ===
+
+    // Shallow zone has an on-duty qualified lifeguard assigned
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+
+    // === PLAN: HYGIENE / HEALTH COMPLIANCE ===
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+
+    // === PLAN: ENFORCEMENT RESPONSE TO PARENTAL DISPUTE ===
+
+    // Despite parental objection, requirements are non-negotiable.
+    // Boy's discipline record is clean; no strikes, no ban, no time-out.
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+
+    // If parents refuse compliance (remove life jacket, refuse in-water supervision),
+    // boy is denied water access — modeled: the plan holds only when requirements are met.
+    // The facility manager's authority stands; no override by parental preference.
+
+    // === PLAN: FACILITY MANAGER QUALIFICATIONS ===
+    (CPOCert in fm.certifications or AFOCert in fm.certifications)
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix violations for: FacilityCapacityF, FacilityOperationalF, EAPF, MedicalClearanceF, RedBandRatioF, DivingF, ZoneGuardedF, ZoneCapacityF, PumpRoomF, WindF, PowerOutageF, BiohazardF.
+
+The core issue is that the plan doesn't constrain the broader facility state, allowing the solver to create worlds where other zones, patrons, facilities, etc. violate protocol. I need to add universal constraints covering all atoms.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    // === SITUATION FACTS ===
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+
+    // === BAND ASSIGNMENT ===
+    boy.wristband = Red and
+
+    // === LIFE JACKET ===
+    boy.wearsUSCGLifeJacket = True and
+
+    // === SUPERVISION ===
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    (boy.chaperoneAdult).supervisedRedBandCount >= 1 and
+    (boy.chaperoneAdult).supervisedRedBandCount <= 3 and
+
+    // === ZONE RESTRICTIONS ===
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+
+    // === LIFEGUARD ===
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount >= 1 and shallowZone.patronCount <= 25 and
+
+    // === HYGIENE ===
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+
+    // === FACILITY OPERATIONAL ===
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.codeAdamActive = False and
+    pool.superChlorinationInProgress = False and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    pool.sunGlareAffectingZones = False and
+
+    // === CHEMISTRY ===
+    pool.chemicalReadings.facTenthPPM >= 15 and pool.chemicalReadings.facTenthPPM <= 50 and
+    pool.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    pool.chemicalReadings.orpHundredMV >= 7 and
+    pool.chemicalReadings.pHTenth >= 72 and pool.chemicalReadings.pHTenth <= 78 and
+    pool.chemicalReadings.totalAlkalinity >= 80 and pool.chemicalReadings.totalAlkalinity <= 120 and
+    pool.chemicalReadings.cyanuricAcid <= 50 and
+
+    // === UNIVERSAL: all zones with patrons are guarded, capped, visualized ===
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True and z.fullyVisualized = True)) and
+    (all z: pool.zones | z != shallowZone implies z.patronCount = 0) and
+
+    // === UNIVERSAL: no patron drowning, no unguarded water entry ===
+    (all p: Patron | no p.drowningStage) and
+    (all p: Patron | p != boy implies no p.inWater) and
+    (all p: Patron | p.hasHighRiskMedicalCondition = True and some p.inWater implies (some p.medicalClearance and some b: Patron | b = p.inWaterBuddy and some b.inWater)) and
+    (all a: Adult | a.supervisedRedBandCount <= 3) and
+
+    // === DIVING AREA SAFE (even if empty) ===
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108))
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix violations for: FacilityCapacityF, FacilityOperationalF, EAPF, MedicalClearanceF, RedBandRatioF, DivingF, ZoneGuardedF, ZoneCapacityF, PumpRoomF, WindF, PowerOutageF, BiohazardF.
+
+The core issue is that the plan doesn't constrain the broader facility state — other zones, other patrons, facility operational status, pump room, etc. I need to add universal constraints over all relevant atoms to prevent protocol violations.
+
+```
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    // === SITUATION FACTS ===
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+
+    // === BAND ASSIGNMENT ===
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+
+    // === SUPERVISION ===
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    (boy.chaperoneAdult).supervisedRedBandCount <= 3 and
+
+    // === ZONE RESTRICTIONS ===
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+
+    // === LIFEGUARD ===
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+
+    // === HYGIENE / DISCIPLINE ===
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+
+    // === FACILITY-WIDE OPERATIONAL SAFETY ===
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.codeAdamActive = False and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    chemicalsSafe[pool.chemicalReadings] and
+
+    // === ALL ZONES GUARDED AND CAPPED ===
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some g: Lifeguard | g.onDuty = True and g.assignedZone = z and z.assignedGuard = g and LifeguardCert in g.certifications and CPR_AED_Cert in g.certifications and FirstAidCert in g.certifications and g.consumedAlcoholWithinTwelveHrs = False and g.onDrowsyMedication = False and g.physicallyMentallyReady = True and g.passedLastAudit = True and g.auditResponseSeconds <= 10 and z.fullyVisualized = True)) and
+
+    // === DIVING AREA SAFE ===
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108)) and
+
+    // === NO DROWNING (EAP) ===
+    (all p: Patron | no p.drowningStage) and
+
+    // === MEDICAL CLEARANCE ===
+    (all p: Patron | p.hasHighRiskMedicalCondition = True and some p.inWater implies (some p.medicalClearance and some b: Patron | b = p.inWaterBuddy and some b.inWater)) and
+
+    // === RED BAND RATIO ALL ADULTS ===
+    (all a: Adult | a.supervisedRedBandCount <= 3)
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    // === SITUATION FACTS ===
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+
+    // === BAND ASSIGNMENT ===
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+
+    // === SUPERVISION ===
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    (boy.chaperoneAdult).supervisedRedBandCount <= 3 and
+
+    // === ZONE RESTRICTIONS ===
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+
+    // === LIFEGUARD ===
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+
+    // === HYGIENE / DISCIPLINE ===
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+
+    // === FACILITY-WIDE OPERATIONAL SAFETY ===
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.codeAdamActive = False and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+
+    // === CHEMICAL READINGS (inline) ===
+    pool.chemicalReadings.facTenthPPM >= 15 and
+    pool.chemicalReadings.facTenthPPM <= 50 and
+    pool.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    pool.chemicalReadings.orpHundredMV >= 7 and
+    pool.chemicalReadings.pHTenth >= 72 and
+    pool.chemicalReadings.pHTenth <= 78 and
+    pool.chemicalReadings.totalAlkalinity >= 80 and
+    pool.chemicalReadings.totalAlkalinity <= 120 and
+    pool.chemicalReadings.cyanuricAcid <= 50 and
+
+    // === ALL ZONES GUARDED AND CAPPED ===
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some g: Lifeguard | g.onDuty = True and g.assignedZone = z and z.assignedGuard = g and LifeguardCert in g.certifications and CPR_AED_Cert in g.certifications and FirstAidCert in g.certifications and g.consumedAlcoholWithinTwelveHrs = False and g.onDrowsyMedication = False and g.physicallyMentallyReady = True and g.passedLastAudit = True and g.auditResponseSeconds <= 10 and z.fullyVisualized = True)) and
+
+    // === DIVING AREA SAFE ===
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108)) and
+
+    // === NO DROWNING (EAP) ===
+    (all p: Patron | no p.drowningStage) and
+
+    // === MEDICAL CLEARANCE ===
+    (all p: Patron | p.hasHighRiskMedicalCondition = True and some p.inWater implies (some p.medicalClearance and some b: Patron | b = p.inWaterBuddy and some b.inWater)) and
+
+    // === RED BAND RATIO ALL ADULTS ===
+    (all a: Adult | a.supervisedRedBandCount <= 3)
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to analyze each violated protocol rule:
+
+1. **FacilityCapacityF** - No constraints on facility capacity fields
+2. **FacilityOperationalF** - No constraints on power, fire alarm, chemicals, weather, air quality, etc.
+3. **EAPF** - No constraints preventing drowning patrons without EAP response
+4. **MedicalClearanceF** - No constraints on medical clearance for other patrons
+5. **RedBandRatioF** - Not constrained for all adults
+6. **DivingF** - Diving zone exists but no safety constraints on it
+7. **ZoneGuardedF** - Diving zone (and other zones) not guarded
+8. **ZoneCapacityF** - Not constrained for all zones
+9. **PumpRoomF** - No pump room constraints
+10. **WindF** - No wind constraints
+11. **PowerOutageF** - No power constraints
+12. **BiohazardF** - No biohazard constraints
+
+I need to add universal constraints covering all entities in the world, not just the boy's zone.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    (boy.chaperoneAdult).supervisedRedBandCount <= 3 and
+
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+
+    divingZone.patronCount = 0 and
+
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.codeAdamActive = False and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    (all z: pool.zones | z.patronCount <= 25 and z.fullyVisualized = True) and
+    (all z: pool.zones | z.patronCount > 0 implies (some g: Lifeguard | g.assignedZone = z and z.assignedGuard = g and g.onDuty = True and LifeguardCert in g.certifications and CPR_AED_Cert in g.certifications and FirstAidCert in g.certifications and g.consumedAlcoholWithinTwelveHrs = False and g.onDrowsyMedication = False and g.physicallyMentallyReady = True and g.passedLastAudit = True and g.auditResponseSeconds <= 10)) and
+    (all p: Patron | no p.drowningStage) and
+    (all p: Patron | p != boy implies no p.inWater) and
+    (all a: Adult | a.supervisedRedBandCount <= 3) and
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108)) and
+    pool.chemicalReadings.facTenthPPM >= 15 and pool.chemicalReadings.facTenthPPM <= 50 and
+    pool.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    pool.chemicalReadings.orpHundredMV >= 7 and
+    pool.chemicalReadings.pHTenth >= 72 and pool.chemicalReadings.pHTenth <= 78 and
+    pool.chemicalReadings.totalAlkalinity >= 80 and pool.chemicalReadings.totalAlkalinity <= 120 and
+    pool.chemicalReadings.cyanuricAcid <= 50
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to identify why each violated protocol rule fails and add constraints to prevent those violations. The key issues are:
+
+1. **FacilityCapacityF** - No constraints on facility capacity fields
+2. **FacilityOperationalF** - Missing power, fire alarm, chemicals, air quality, weather, drain visibility constraints
+3. **EAPF** - Need to ensure no unhandled drowning
+4. **MedicalClearanceF** - Need to handle medical clearance for all patrons
+5. **RedBandRatioF** - Need to constrain ALL adults, not just the chaperone
+6. **DivingF** - The divingZone (DivingArea) needs to satisfy divingAreaSafe
+7. **ZoneGuardedF** - The divingZone also needs a guard if it has patrons
+8. **ZoneCapacityF** - All zones need patronCount <= 25
+9. **PumpRoomF** - Pump room safety not constrained
+10. **WindF** - Wind protocol not constrained
+11. **PowerOutageF** - Power not constrained
+12. **BiohazardF** - Biohazard not constrained
+
+I need to add universal constraints covering all objects in the world, not just the boy's zone.
+
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+    no boy.drowningStage and
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    pool.codeAdamActive = False and
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True and z.fullyVisualized = True)) and
+    divingZone.patronCount = 0 and
+    (all a: Adult | a.supervisedRedBandCount <= 3) and
+    (all p: Patron | no p.drowningStage) and
+    (all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance) and
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108))
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix three violated rules:
+
+1. **FacilityCapacityF**: The 95% turnstile lockout isn't constrained. Need to ensure `turnstileLocked` is set correctly.
+
+2. **FacilityOperationalF**: Chemical readings aren't constrained. Need to add explicit safe chemical values.
+
+3. **HighRiskF**: The boy's `participatesInHighRiskActivity` isn't constrained, so it could be True without a waiver. Need to set it to False.
+
+I also need to ensure all universal quantifiers cover potential protocol gaps (e.g., all patrons' `participatesInHighRiskActivity`, all lifeguards on duty meeting requirements, etc.).
+
+```
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation >= 0 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount <= 25 and
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    boy.participatesInHighRiskActivity = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+    no boy.drowningStage and
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    (pool.currentBatherCount.plus[pool.maxBatherLoad.div[20]] >= pool.maxBatherLoad implies pool.turnstileLocked = True) and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    pool.codeAdamActive = False and
+    pool.chemicalReadings.facTenthPPM >= 15 and pool.chemicalReadings.facTenthPPM <= 50 and
+    pool.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    pool.chemicalReadings.orpHundredMV >= 7 and
+    pool.chemicalReadings.pHTenth >= 72 and pool.chemicalReadings.pHTenth <= 78 and
+    pool.chemicalReadings.totalAlkalinity >= 80 and pool.chemicalReadings.totalAlkalinity <= 120 and
+    pool.chemicalReadings.cyanuricAcid <= 50 and
+    divingZone.patronCount = 0 and
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True and z.fullyVisualized = True)) and
+    (all a: Adult | a.supervisedRedBandCount <= 3) and
+    (all p: Patron | no p.drowningStage) and
+    (all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)) and
+    (all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance) and
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108))
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the error, the issue is with `pool.currentBatherCount.plus[pool.maxBatherLoad.div[20]]` - I need to avoid calling integer arithmetic functions that are part of the safety specification and instead state the constraint concretely.
+
+For the 95% turnstile lockout, I'll simply assert `pool.turnstileLocked = True` or handle it by constraining the values directly. I also need to carefully ensure all protocol rules are covered for all atoms in the universe, not just the boy.
+
+pred GeneratedPlan {
+  some boy: Patron, parent1: Adult, parent2: Adult, pool: Facility, divingZone: WaterZone, fm: FacilityManager, lg: Lifeguard, shallowZone: ShallowZone |
+
+    boy.age >= 5 and boy.age <= 11 and
+    boy in QueryExt.passedSwimTest.False and
+    divingZone in pool.zones and
+    divingZone.hasDivingBoard = True and
+    parent1 in QueryExt.disputesSafetyRequirements.True and
+    parent2 in QueryExt.disputesSafetyRequirements.True and
+    fm.onDuty = True and
+    (CPOCert in fm.certifications or AFOCert in fm.certifications) and
+    boy.wristband = Red and
+    boy.wearsUSCGLifeJacket = True and
+    boy.chaperoneAdult in (parent1 + parent2) and
+    (boy.chaperoneAdult).inWaterSupervising = True and
+    (boy.chaperoneAdult).withinArmsReachOfWard = True and
+    shallowZone in pool.zones and
+    shallowZone != divingZone and
+    boy.inWater = shallowZone and
+    shallowZone.depthInches <= boy.armpitHeightInches and
+    lg.onDuty = True and
+    lg.assignedZone = shallowZone and
+    shallowZone.assignedGuard = lg and
+    LifeguardCert in lg.certifications and
+    CPR_AED_Cert in lg.certifications and
+    FirstAidCert in lg.certifications and
+    lg.consumedAlcoholWithinTwelveHrs = False and
+    lg.onDrowsyMedication = False and
+    lg.physicallyMentallyReady = True and
+    lg.passedLastAudit = True and
+    lg.auditResponseSeconds <= 10 and
+    lg.eyesOnWater = True and
+    lg.hasRescueTube = True and
+    lg.visualScanWithinTenSec = True and
+    lg.canReachZoneInTwentySec = True and
+    lg.minutesSinceRotation >= 0 and
+    lg.minutesSinceRotation <= 30 and
+    lg.inServiceTrainingHoursMonth >= 4 and
+    shallowZone.fullyVisualized = True and
+    shallowZone.patronCount > 0 and
+    shallowZone.patronCount <= 25 and
+    boy.hasGIIllnessWithin14Days = False and
+    boy.hasOpenWounds = False and
+    boy.tookShowerWithSoap = True and
+    boy.carriesContraband = False and
+    boy.participatesInHighRiskActivity = False and
+    no boy.currentBehaviors and
+    boy.strikes = 0 and
+    boy.permanentBan = False and
+    boy.inTimeOut = False and
+    no boy.drowningStage and
+    pool.powerOn = True and
+    pool.fireAlarmActive = False and
+    pool.mainDrainVisible = True and
+    pool.airQualitySafe = True and
+    pool.lightningDetected = False and
+    pool.lastThunderMinutesAgo > 30 and
+    pool.windSpeed <= 35 and
+    pool.lastManualTestMinutesAgo <= 120 and
+    pool.currentBatherCount >= 1 and
+    pool.currentBatherCount <= pool.maxBatherLoad and
+    pool.currentBatherCount <= pool.fireCapacity and
+    pool.shallowAreaRatioCompliant = True and
+    pool.deepAreaRatioCompliant = True and
+    pool.chloramineOdorExceedsLimit = False and
+    no pool.activeBiohazardIncident and
+    pool.pumpRoom.locked = True and
+    pool.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10 and
+    pool.pumpRoom.separateContainmentBerms = True and
+    pool.pumpRoom.authorizedAccessOnly = True and
+    no pool.pumpRoom.occupants and
+    pool.codeAdamActive = False and
+    pool.chemicalReadings.facTenthPPM >= 15 and pool.chemicalReadings.facTenthPPM <= 50 and
+    pool.chemicalReadings.combinedChlorineTenthPPM <= 4 and
+    pool.chemicalReadings.orpHundredMV >= 7 and
+    pool.chemicalReadings.pHTenth >= 72 and pool.chemicalReadings.pHTenth <= 78 and
+    pool.chemicalReadings.totalAlkalinity >= 80 and pool.chemicalReadings.totalAlkalinity <= 120 and
+    pool.chemicalReadings.cyanuricAcid <= 50 and
+    divingZone.patronCount = 0 and
+    (all z: pool.zones | z.patronCount <= 25) and
+    (all z: pool.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True and z.fullyVisualized = True)) and
+    (all a: Adult | a.supervisedRedBandCount <= 3) and
+    (all p: Patron | no p.drowningStage) and
+    (all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)) and
+    (all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance) and
+    (all da: DivingArea | da in pool.zones implies (da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108))
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts (matching rule) ===
+
+    // Elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11
+
+    // The boy failed the swim test
+    boy in QueryExt.passedSwimTest.False
+
+    // The boy's chaperone is the parent
+    boy.chaperoneAdult = parent
+
+    // The pool has a diving board
+    pool.hasDivingBoard = True
+
+    // The pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True
+
+    // A parent must be in the water with him
+    parent.inWaterSupervising = True
+
+    // === Plan: band assignment ===
+    // Boy failed swim test: assign Red wristband (non-swimmer, shallow only)
+    boy.wristband = Red
+
+    // === Plan: zone restriction ===
+    // Red band restricts boy to shallow zone at or below armpit depth
+    // Boy must NOT be in the diving-board pool or any deep zone
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+
+    // === Plan: supervision requirements ===
+    // Parent must be in the water, within arm's reach (age <= 11 with Red band, age < 12 rule)
+    parent.inWaterSupervising = True
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+
+    // === Plan: life jacket required ===
+    boy.wearsUSCGLifeJacket = True
+
+    // === Plan: diving board access denied ===
+    // Boy is not in the diving area pool
+    boy.inWater not in DivingArea
+
+    // === Plan: boy has no prohibited behaviors, is healthy ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    no boy.drowningStage
+
+    // === Plan: zone is guarded by qualified lifeguard ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+    lifeguardQualified[lg]
+    lifeguardFitForDuty[lg]
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+
+    // === Plan: enforcement response ===
+    // Parental objection does not override facility policy.
+    // The facility manager's directive stands: life jacket + in-water parent supervision
+    // are mandatory conditions for the boy's water access. Non-compliance results in
+    // denial of water entry (boy would have no inWater if he refuses the life jacket).
+    // Strike system applies if rules are violated after entry.
+    boy.strikes = 0
+    boy.inTimeOut = False
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the calls to `lifeguardQualified[lg]` and `lifeguardFitForDuty[lg]` with their concrete constraints inlined directly.
+
+Let me also review the plan for any other issues - I need to ensure all protocol requirements are met with concrete constraints, and that the situation facts from the query are preserved.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts (matching rule) ===
+
+    // Elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11
+
+    // The boy failed the swim test
+    boy in QueryExt.passedSwimTest.False
+
+    // The boy's chaperone is the parent
+    boy.chaperoneAdult = parent
+
+    // The pool has a diving board
+    pool.hasDivingBoard = True
+
+    // The pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True
+
+    // A parent must be in the water with him
+    parent.inWaterSupervising = True
+
+    // === Plan: band assignment ===
+    boy.wristband = Red
+
+    // === Plan: zone restriction ===
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+
+    // === Plan: supervision requirements ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+
+    // === Plan: diving board access denied ===
+    boy.inWater not in DivingArea
+
+    // === Plan: boy has no prohibited behaviors, is healthy ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+
+    // === Plan: zone is guarded by qualified lifeguard (inlined) ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // Lifeguard certifications (inlined from lifeguardQualified)
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+
+    // Lifeguard fitness (inlined from lifeguardFitForDuty)
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+
+    // === Plan: enforcement response ===
+    // Parental objection does not override facility policy.
+    // Life jacket + in-water parent supervision are mandatory for water access.
+    // Non-compliance results in denial of water entry.
+
+    // === Facility operational baseline ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False
+    f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+  }
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix violations for: FacilityCapacityF, FacilityOperationalF, HighRiskF, DivingF, ZoneGuardedF, ZoneCapacityF, PumpRoomF, AirQualityF, BiohazardF.
+
+The core issues are that the plan doesn't constrain:
+1. Facility capacity fields
+2. Chemical readings
+3. Pump room safety
+4. Other zones (like the DivingArea/pool) that exist but are unconstrained
+5. Various universal quantifier predicates that apply to ALL patrons, zones, etc.
+
+I need to lock down the entire world more tightly so no unconstrained atoms can violate Protocol.
+
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.hasDivingBoard != True
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+    ChemicalReadings = cr
+    PumpRoom = pr
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+    no boy.medicalClearance
+    no boy.supplementaryWaiver
+    no boy.inWaterBuddy
+    boy.timeOutMinutesRemaining = 0
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, the violation is `FacilityCapacityF`. The issue is the 95% turnstile lockout rule:
+
+```
+(f.currentBatherCount.plus[f.maxBatherLoad.div[20]] >= f.maxBatherLoad)
+   implies f.turnstileLocked = True
+```
+
+The plan doesn't constrain `f.turnstileLocked`, so when the solver picks values where `currentBatherCount` is at or above 95% of `maxBatherLoad`, the turnstile isn't locked. I need to add the turnstile lockout constraint. I also need to ensure `f.maxBatherLoad` and `f.fireCapacity` are set to concrete enough values, and handle the capacity check properly.
+
+Let me also review: the plan sets `f.currentBatherCount >= 1` and `f.currentBatherCount <= f.maxBatherLoad` but doesn't constrain `turnstileLocked`. The fix is to add the turnstile lockout implication.
+
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+    ChemicalReadings = cr
+    PumpRoom = pr
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+    no boy.medicalClearance
+    no boy.supplementaryWaiver
+    no boy.inWaterBuddy
+    boy.timeOutMinutesRemaining = 0
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount = 1
+    f.maxBatherLoad = 100
+    f.fireCapacity = 100
+    f.turnstileLocked = False
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+    ChemicalReadings = cr
+    PumpRoom = pr
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+    no boy.medicalClearance
+    no boy.supplementaryWaiver
+    no boy.inWaterBuddy
+    boy.timeOutMinutesRemaining = 0
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+    ChemicalReadings = cr
+    PumpRoom = pr
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+    no boy.medicalClearance
+    no boy.supplementaryWaiver
+    no boy.inWaterBuddy
+    boy.timeOutMinutesRemaining = 0
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the error, the issue is that `shallow != pool` is redundant because `ShallowZone` and `DivingArea` are disjoint types in Alloy (they're separate `sig` extensions of `WaterZone`). Alloy treats this as a type warning that prevents compilation.
+
+I need to remove that redundant comparison.
+
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.hasDivingBoard != True
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the error, the issue is that `shallow != pool` is comparing a `ShallowZone` with a `DivingArea`, which are disjoint types in Alloy (they're different subtypes of `WaterZone`), so the comparison is redundant and causes a type warning that prevents compilation.
+
+I need to remove that redundant constraint since `ShallowZone` and `DivingArea` are already guaranteed to be disjoint by the type system.
+
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.hasDivingBoard != True
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, shallow: ShallowZone, pool: DivingArea, f: Facility, lg: Lifeguard, cr: ChemicalReadings, pr: PumpRoom {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Minimal world: one patron, one facility, one lifeguard ===
+    Patron = boy
+    Adult = parent
+    Facility = f
+    Lifeguard = lg
+    no HeadLifeguard
+    no FacilityManager
+    WaterZone = shallow + pool
+    f.zones = shallow + pool
+    ShallowZone = shallow
+    DivingArea = pool
+    no WavePool and no LazyRiver and no WaterSlide and no Spa and no DeepZone
+    no BiohazardIncident
+    no MedicalClearance
+    no SupplementaryWaiver
+    ChemicalReadings = cr
+    PumpRoom = pr
+
+    // === Band assignment: Red ===
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow.depthInches <= boy.armpitHeightInches
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.participatesInHighRiskActivity != True
+    boy.hasHighRiskMedicalCondition != True
+    no boy.medicalClearance
+    no boy.supplementaryWaiver
+    no boy.inWaterBuddy
+    boy.timeOutMinutesRemaining = 0
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1 and parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Diving area: empty, safe ===
+    pool.patronCount = 0
+    pool.personsOnApparatus = 0
+    pool.previousDiverSurfaced = True
+    pool.previousDiverReachedWall = True
+    pool.depthInches >= 108
+    pool.fullyVisualized = True
+    no pool.assignedGuard
+
+    // === Shallow zone guarded ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1 and shallow.patronCount <= 25
+    LifeguardCert in lg.certifications and CPR_AED_Cert in lg.certifications and FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False and lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True and lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True and lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True and lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0 and lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4 and lg.zoneFullyVisualized = True
+    no lg.relievedBy
+
+    // === Facility ===
+    f.powerOn = True and f.fireAlarmActive = False
+    f.mainDrainVisible = True and f.airQualitySafe = True
+    f.lightningDetected = False and f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False and f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.chloramineOdorExceedsLimit = False
+    f.currentBatherCount >= 1 and f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True and f.deepAreaRatioCompliant = True
+    f.chemicalReadings = cr
+    cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+    cr.combinedChlorineTenthPPM <= 4
+    cr.orpHundredMV >= 7
+    cr.pHTenth >= 72 and cr.pHTenth <= 78
+    cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+    cr.cyanuricAcid <= 50
+    f.pumpRoom = pr
+    pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10
+    pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True
+    no pr.occupants
+    no f.activeBiohazardIncident
+    f.sanctionedPracticeActive != True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the calls to `lifeguardQualified[lg]` and `lifeguardFitForDuty[lg]` with their concrete constraint expansions. Let me also review the plan for any other issues and ensure full protocol compliance.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts (matching rule) ===
+
+    // Elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11
+
+    // The boy failed the swim test
+    boy in QueryExt.passedSwimTest.False
+
+    // The boy's chaperone is the parent
+    boy.chaperoneAdult = parent
+
+    // The pool has a diving board
+    pool.hasDivingBoard = True
+
+    // The pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True
+
+    // A parent must be in the water with him
+    parent.inWaterSupervising = True
+
+    // === Plan: band assignment ===
+    boy.wristband = Red
+
+    // === Plan: zone restriction ===
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+    boy.inWater not in DivingArea
+
+    // === Plan: supervision requirements ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+
+    // === Plan: life jacket required ===
+    boy.wearsUSCGLifeJacket = True
+
+    // === Plan: boy has no prohibited behaviors, is healthy ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    no boy.drowningStage
+    boy.inTimeOut = False
+    boy.timeOutMinutesRemaining = 0
+    boy.onDeck = False
+
+    // === Plan: zone is guarded by qualified, fit lifeguard (expanded) ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+
+    // lifeguardQualified expanded
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+
+    // lifeguardFitForDuty expanded
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // === Plan: facility operational ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.windSpeed <= 35
+    f.codeAdamActive = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+    f.chloramineOdorExceedsLimit = False
+    no f.activeBiohazardIncident
+    f.sunGlareAffectingZones = False
+
+    // === Plan: enforcement response ===
+    // Parental objection does not override facility policy.
+    // Life jacket + in-water parent supervision are mandatory for water access.
+    // Non-compliance results in denial of water entry.
+  }
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix several violations:
+
+1. **FacilityOperationalF**: Chemical readings not constrained
+2. **HighRiskF/MedicalClearanceF**: Unconstrained fields on the patron allow violations
+3. **RedBandRatioF**: Need to constrain all Adults
+4. **DivingF**: The `pool` with diving board is a DivingArea needing safety constraints
+5. **ZoneGuardedF**: The `pool` zone needs a guard if it has patrons
+6. **ZoneCapacityF**: All zones need patronCount <= 25
+7. **PumpRoomF**: Pump room not constrained
+
+I need to universally constrain all atoms or tightly restrict what exists.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Band assignment: Red (failed swim test) ===
+    boy.wristband = Red
+
+    // === Zone restriction ===
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+    shallow not in DivingArea
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Boy clean state ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    no boy.drowningStage
+    boy.inTimeOut = False
+    boy.timeOutMinutesRemaining = 0
+    boy.onDeck = False
+    boy.participatesInHighRiskActivity = False
+    boy.hasHighRiskMedicalCondition = False
+
+    // === Lifeguard for shallow ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+    no lg.relievedBy
+    lg.inEAPResponse = False
+
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // === Pool zone: no patrons (boy restricted to shallow) ===
+    pool.patronCount = 0
+
+    // === All zones capacity ===
+    all z: f.zones | z.patronCount <= 25 and z.fullyVisualized = True
+    all z: f.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True)
+
+    // === All Adults ratio ===
+    all a: Adult | a.supervisedRedBandCount <= 3
+
+    // === Facility operational ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.windSpeed <= 35
+    f.codeAdamActive = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+    f.chloramineOdorExceedsLimit = False
+    no f.activeBiohazardIncident
+    f.sunGlareAffectingZones = False
+    f.superChlorinationInProgress = False
+
+    // === Chemistry ===
+    let cr = f.chemicalReadings {
+      cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+      cr.combinedChlorineTenthPPM <= 4
+      cr.orpHundredMV >= 7
+      cr.pHTenth >= 72 and cr.pHTenth <= 78
+      cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+      cr.cyanuricAcid <= 50
+    }
+
+    // === Pump room ===
+    let pr = f.pumpRoom {
+      pr.locked = True
+      pr.oxidizersAndAcidsDistanceFeet >= 10
+      pr.separateContainmentBerms = True
+      pr.authorizedAccessOnly = True
+      no pr.occupants
+    }
+
+    // === All patrons safe ===
+    all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)
+    all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance
+
+    // === Diving area safety ===
+    all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  }
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts ===
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    boy.wearsUSCGLifeJacket = True
+    parent.inWaterSupervising = True
+
+    // === Band assignment: Red (failed swim test) ===
+    boy.wristband = Red
+
+    // === Zone restriction ===
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+
+    // === Supervision ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+    parent.supervisedInfantCount = 0
+
+    // === Boy clean state ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    no boy.drowningStage
+    boy.inTimeOut = False
+    boy.timeOutMinutesRemaining = 0
+    boy.onDeck = False
+    boy.participatesInHighRiskActivity = False
+    boy.hasHighRiskMedicalCondition = False
+
+    // === Lifeguard for shallow ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+    no lg.relievedBy
+    lg.inEAPResponse = False
+
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // === Pool zone: no patrons (boy restricted to shallow) ===
+    pool.patronCount = 0
+
+    // === All zones capacity ===
+    all z: f.zones | z.patronCount <= 25 and z.fullyVisualized = True
+    all z: f.zones | z.patronCount > 0 implies (some z.assignedGuard and z.assignedGuard.onDuty = True)
+
+    // === All Adults ratio ===
+    all a: Adult | a.supervisedRedBandCount <= 3
+
+    // === Facility operational ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.windSpeed <= 35
+    f.codeAdamActive = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+    f.chloramineOdorExceedsLimit = False
+    no f.activeBiohazardIncident
+    f.sunGlareAffectingZones = False
+    f.superChlorinationInProgress = False
+
+    // === Chemistry ===
+    let cr = f.chemicalReadings {
+      cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50
+      cr.combinedChlorineTenthPPM <= 4
+      cr.orpHundredMV >= 7
+      cr.pHTenth >= 72 and cr.pHTenth <= 78
+      cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120
+      cr.cyanuricAcid <= 50
+    }
+
+    // === Pump room ===
+    let pr = f.pumpRoom {
+      pr.locked = True
+      pr.oxidizersAndAcidsDistanceFeet >= 10
+      pr.separateContainmentBerms = True
+      pr.authorizedAccessOnly = True
+      no pr.occupants
+    }
+
+    // === All patrons safe ===
+    all p: Patron | p.participatesInHighRiskActivity = True implies (some p.supplementaryWaiver and HighRiskActivityCert in p.highRiskCertifications)
+    all p: Patron | p.hasHighRiskMedicalCondition = True implies some p.medicalClearance
+
+    // === Diving area safety ===
+    all da: DivingArea | da.depthInches >= 108 and da.personsOnApparatus <= 1 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the verifier error, I need to replace the calls to `lifeguardQualified[lg]` and `lifeguardFitForDuty[lg]` with their concrete constraint expansions. Let me also review the plan for any other issues and ensure full protocol compliance.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts (matching rule) ===
+
+    // Elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11
+
+    // The boy failed the swim test
+    boy in QueryExt.passedSwimTest.False
+
+    // The boy's chaperone is the parent
+    boy.chaperoneAdult = parent
+
+    // The pool has a diving board
+    pool.hasDivingBoard = True
+
+    // A parent must be in the water with him
+    parent.inWaterSupervising = True
+
+    // The pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True
+
+    // === Plan: band assignment ===
+    // Boy failed swim test: assign Red wristband (non-swimmer, shallow only)
+    boy.wristband = Red
+
+    // === Plan: zone restriction ===
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+    boy.inWater not in DivingArea
+
+    // === Plan: supervision requirements ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+
+    // === Plan: boy health, hygiene, discipline ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.onDeck = False
+    boy.hasHighRiskMedicalCondition = False
+    boy.participatesInHighRiskActivity = False
+
+    // === Plan: zone is guarded by qualified, fit lifeguard ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // Lifeguard certifications (expanded from lifeguardQualified)
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+
+    // Lifeguard fitness (expanded from lifeguardFitForDuty)
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+
+    // Lifeguard operational standards
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+    lg.inEAPResponse = False
+
+    // === Facility operational baseline ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False
+    f.chloramineOdorExceedsLimit = False
+    f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+
+    // === Enforcement response ===
+    // Parental objection does not override facility policy.
+    // Life jacket + in-water parent supervision are mandatory for water access.
+    // Non-compliance results in denial of water entry.
+  }
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix violations for: FacilityOperationalF, DivingF, ZoneGuardedF, ZoneCapacityF, PumpRoomF, and BiohazardF.
+
+The issues are:
+1. **DivingF/ZoneGuardedF/ZoneCapacityF**: The `pool` (with diving board) exists but is unconstrained - it could be a DivingArea without proper safety settings, without a guard, or with too many patrons.
+2. **PumpRoomF**: The pump room is unconstrained.
+3. **BiohazardF**: Biohazard incidents are unconstrained.
+4. **FacilityOperationalF**: Chemical readings are unconstrained.
+
+I need to constrain all zones, the pump room, chemical readings, and ensure no unconstrained biohazard incidents exist.
+
+```alloy
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    parent.inWaterSupervising = True
+    boy.wearsUSCGLifeJacket = True
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+    boy.inWater not in DivingArea
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.onDeck = False
+    boy.hasHighRiskMedicalCondition = False
+    boy.participatesInHighRiskActivity = False
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+    lg.inEAPResponse = False
+    no lg.relievedBy
+    all z: f.zones | z != shallow implies z.patronCount = 0
+    all z: f.zones | z.patronCount <= 25
+    all z: f.zones | z.fullyVisualized = True
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False
+    f.chloramineOdorExceedsLimit = False
+    f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+    let cr = f.chemicalReadings | cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50 and cr.combinedChlorineTenthPPM <= 4 and cr.orpHundredMV >= 7 and cr.pHTenth >= 72 and cr.pHTenth <= 78 and cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120 and cr.cyanuricAcid <= 50
+    let pr = f.pumpRoom | pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10 and pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True and no pr.occupants
+    no f.activeBiohazardIncident
+    no BBPSpill
+    no SolidFecalIncident
+    no DiarrhealIncident
+    f.superChlorinationInProgress = False
+    all da: DivingArea & f.zones | da.personsOnApparatus = 0 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108
+  }
+}
+```
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+Looking at the counterexample, I need to fix two violations:
+
+1. **RedBandRatioF**: The parent (`Adult$1`) has `supervisedRedBandCount` unconstrained for *other* adults. I need to ensure ALL adults satisfy `supervisedRedBandCount <= 3`. The counterexample likely has another Adult atom with `supervisedRedBandCount > 3`.
+
+2. **SlideF**: There's a `WaterSlide` in the world that isn't constrained by the plan. The `slideDispatchSafe` predicate requires `splashdownClearByBottomGuard = True` and `allClearSignalReceivedByTopDispatcher = True` for ALL WaterSlides. I need to constrain all WaterSlides globally.
+
+I also need to lock down all Adults' `supervisedRedBandCount` and ensure all WaterSlide instances satisfy dispatch safety, plus handle all other potential unconstrained atoms.
+
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    boy.age >= 5 and boy.age <= 11
+    boy in QueryExt.passedSwimTest.False
+    boy.chaperoneAdult = parent
+    pool.hasDivingBoard = True
+    parent.inWaterSupervising = True
+    boy.wearsUSCGLifeJacket = True
+    boy.wristband = Red
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+    boy.inWater not in DivingArea
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    boy.inTimeOut = False
+    no boy.drowningStage
+    boy.onDeck = False
+    boy.hasHighRiskMedicalCondition = False
+    boy.participatesInHighRiskActivity = False
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+    lg.inEAPResponse = False
+    no lg.relievedBy
+    all z: f.zones | z != shallow implies z.patronCount = 0
+    all z: f.zones | z.patronCount <= 25
+    all z: f.zones | z.fullyVisualized = True
+    all a: Adult | a.supervisedRedBandCount <= 3
+    all ws: WaterSlide | ws.splashdownClearByBottomGuard = True and ws.allClearSignalReceivedByTopDispatcher = True
+    all p: Patron | p != boy implies (no p.inWater and p.permanentBan != True and p.strikes = 0)
+    all p: Patron | p != boy implies no (p.currentBehaviors & (PhysicalViolence + StaffAbuse + IntentionalDefecation + RestrictedAreaEntry))
+    all p: Patron | p != boy implies p.carriesContraband = False
+    all da: DivingArea & f.zones | da.personsOnApparatus = 0 and da.previousDiverSurfaced = True and da.previousDiverReachedWall = True and da.depthInches >= 108
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.codeAdamActive = False
+    f.chloramineOdorExceedsLimit = False
+    f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+    let cr = f.chemicalReadings | cr.facTenthPPM >= 15 and cr.facTenthPPM <= 50 and cr.combinedChlorineTenthPPM <= 4 and cr.orpHundredMV >= 7 and cr.pHTenth >= 72 and cr.pHTenth <= 78 and cr.totalAlkalinity >= 80 and cr.totalAlkalinity <= 120 and cr.cyanuricAcid <= 50
+    let pr = f.pumpRoom | pr.locked = True and pr.oxidizersAndAcidsDistanceFeet >= 10 and pr.separateContainmentBerms = True and pr.authorizedAccessOnly = True and no pr.occupants
+    no f.activeBiohazardIncident
+    no BBPSpill
+    no SolidFecalIncident
+    no DiarrhealIncident
+    f.superChlorinationInProgress = False
+  }
+}
+
+============================================================
+
+[provider=claude model=claude-opus-4-6]
+pred GeneratedPlan {
+  some boy: Patron, parent: Adult, pool: WaterZone, shallow: ShallowZone, f: Facility, lg: Lifeguard {
+    // === Situation facts (matching rule) ===
+
+    // Elementary-school-aged boy
+    boy.age >= 5 and boy.age <= 11
+
+    // The boy failed the swim test
+    boy in QueryExt.passedSwimTest.False
+
+    // The boy's chaperone is the parent
+    boy.chaperoneAdult = parent
+
+    // The pool has a diving board
+    pool.hasDivingBoard = True
+
+    // The pool manager has told the parents the boy must wear a life jacket
+    boy.wearsUSCGLifeJacket = True
+
+    // A parent must be in the water with him
+    parent.inWaterSupervising = True
+
+    // === Plan: band assignment ===
+    // Boy failed swim test: assign Red wristband (non-swimmer, shallow only)
+    boy.wristband = Red
+
+    // === Plan: zone restriction ===
+    // Red band restricts boy to shallow zone at or below armpit depth
+    boy.inWater = shallow
+    shallow in f.zones
+    pool in f.zones
+    shallow != pool
+    shallow.depthInches <= boy.armpitHeightInches
+    shallow.isDeepEnd != True
+    shallow.hasDivingBoard != True
+
+    // === Plan: supervision requirements ===
+    parent.withinArmsReachOfWard = True
+    parent.supervisedRedBandCount >= 1
+    parent.supervisedRedBandCount <= 3
+
+    // === Plan: diving board access denied ===
+    boy.inWater not in DivingArea
+
+    // === Plan: boy has no prohibited behaviors, is healthy ===
+    no boy.currentBehaviors
+    boy.carriesContraband = False
+    boy.hasGIIllnessWithin14Days = False
+    boy.hasOpenWounds = False
+    boy.tookShowerWithSoap = True
+    boy.permanentBan = False
+    boy.strikes = 0
+    no boy.drowningStage
+    boy.inTimeOut = False
+
+    // === Plan: zone is guarded by qualified, fit lifeguard (concrete certs & fitness) ===
+    lg.onDuty = True
+    lg.assignedZone = shallow
+    shallow.assignedGuard = lg
+    shallow.fullyVisualized = True
+    shallow.patronCount >= 1
+    shallow.patronCount <= 25
+
+    // Lifeguard certifications (concrete)
+    LifeguardCert in lg.certifications
+    CPR_AED_Cert in lg.certifications
+    FirstAidCert in lg.certifications
+
+    // Lifeguard fitness for duty (concrete)
+    lg.consumedAlcoholWithinTwelveHrs = False
+    lg.onDrowsyMedication = False
+    lg.physicallyMentallyReady = True
+    lg.passedLastAudit = True
+    lg.auditResponseSeconds <= 10
+
+    // Lifeguard operational standards
+    lg.hasRescueTube = True
+    lg.eyesOnWater = True
+    lg.visualScanWithinTenSec = True
+    lg.canReachZoneInTwentySec = True
+    lg.minutesSinceRotation >= 0
+    lg.minutesSinceRotation <= 30
+    lg.inServiceTrainingHoursMonth >= 4
+    lg.zoneFullyVisualized = True
+
+    // === Plan: facility operational ===
+    f.powerOn = True
+    f.fireAlarmActive = False
+    f.mainDrainVisible = True
+    f.airQualitySafe = True
+    f.lightningDetected = False
+    f.lastThunderMinutesAgo > 30
+    f.lastManualTestMinutesAgo <= 120
+    f.windSpeed <= 35
+    f.sunGlareAffectingZones = False
+    f.codeAdamActive = False
+    f.chloramineOdorExceedsLimit = False
+
+    // === Plan: facility capacity ===
+    f.currentBatherCount <= f.maxBatherLoad
+    f.currentBatherCount <= f.fireCapacity
+    f.shallowAreaRatioCompliant = True
+    f.deepAreaRatioCompliant = True
+
+    // === Plan: pump room ===
+    f.pumpRoom.locked = True
+    f.pumpRoom.oxidizersAndAcidsDistanceFeet >= 10
+    f.pumpRoom.separateContainmentBerms = True
+    f.pumpRoom.authorizedAccessOnly = True
+
+    // === Plan: chemicals safe ===
+    f.chemicalReadings.facTenthPPM >= 15
+    f.chemicalReadings.facTenthPPM <= 50
+    f.chemicalReadings.combinedChlorineTenthPPM <= 4
+    f.chemicalReadings.orpHundredMV >= 7
+    f.chemicalReadings.pHTenth >= 72
+    f.chemicalReadings.pHTenth <= 78
+    f.chemicalReadings.totalAlkalinity >= 80
+    f.chemicalReadings.totalAlkalinity <= 120
+    f.chemicalReadings.cyanuricAcid <= 50
+
+    // === Plan: enforcement response ===
+    // Parental objection does not override facility policy.
+    // Life jacket + in-water parent supervision are mandatory for water access.
+    // Non-compliance results in denial of water entry.
+
+    // Boy not participating in high-risk activity, no medical condition flagged
+    boy.participatesInHighRiskActivity = False
+    boy.hasHighRiskMedicalCondition = False
+
+    // No active biohazard
+    no f.activeBiohazardIncident
+  }
+}
+
+============================================================
 
