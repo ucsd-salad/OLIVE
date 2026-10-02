@@ -3,6 +3,11 @@ import edu.mit.csail.sdg.alloy4.ConstList;
 import edu.mit.csail.sdg.alloy4.ErrorWarning;
 import edu.mit.csail.sdg.ast.Command;
 import edu.mit.csail.sdg.ast.Module;
+import edu.mit.csail.sdg.ast.Func;
+import java.util.HashSet;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Set;
 import edu.mit.csail.sdg.parser.CompUtil;
 import edu.mit.csail.sdg.translator.A4Options;
 import edu.mit.csail.sdg.translator.A4Solution;
@@ -49,6 +54,37 @@ public class AlloyCommandline {
         if (warnings[0] > 0) {
             System.out.println("Type warning: " + warnings[0] + " warning(s); no command was run.");
             return;
+        }
+        if (Arrays.asList(args).contains("--syntax-only")) {
+            System.out.println("COMPILED: GeneratedPlan");
+            return;
+        }
+
+        Func plan = null;
+        Set<Func> forbidden = new HashSet<>();
+        ArrayDeque<Func> pending = new ArrayDeque<>();
+        for (Func function : world.getAllReachableUserDefinedFunc()) {
+            String name = function.label.substring(function.label.lastIndexOf('/') + 1);
+            if (name.equals("GeneratedPlan")) plan = function;
+            if (name.equals("Protocol")) pending.add(function);
+        }
+        while (!pending.isEmpty()) {
+            Func function = pending.removeFirst();
+            // Shared integer primitives are arithmetic, not safety-specification helpers.
+            if (function.label.startsWith("integer/")) continue;
+            if (!forbidden.add(function)) continue;
+            for (Func called : function.getBody().findAllFunctions()) pending.add(called);
+        }
+        if (plan != null) {
+            // Calling the safety property makes verification circular. Use resolved
+            // calls so a field such as lg.eyesOnWater is not confused with a predicate.
+            for (Func called : plan.getBody().findAllFunctions()) {
+                if (forbidden.contains(called)) {
+                    System.out.println("INVALID_PLAN: Describe concrete constraints instead of calling "
+                        + called.label + ", part of the safety specification.");
+                    return;
+                }
+            }
         }
 
         // 2. 配置选项 (默认即为 SAT4J). Instances with an integer overflow are
