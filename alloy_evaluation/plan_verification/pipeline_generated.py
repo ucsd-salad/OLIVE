@@ -23,7 +23,11 @@ models, so the formal query reaches the plan only through the prompt.
   constraints are facts. The verifier file runs, in order:
 
     run CounterExample { GeneratedPlan and not Protocol }
-    run PlanPossible   { GeneratedPlan }
+    run PlanPossible   { GeneratedPlan and rule }
+    run QueryViolation { GeneratedPlan and not rule }
+
+  `rule` is the released query, when supplied. Query-free verification omits
+  QueryViolation and checks PlanPossible with GeneratedPlan alone.
 
   CounterExample: Instance found    => a world that follows the plan and breaks
                                        the protocol exists => UNSAFE; the
@@ -33,14 +37,17 @@ models, so the formal query reaches the plan only through the prompt.
                                        structure of the model, so "no
                                        counterexample" would be vacuous
                                        => IMPOSSIBLE_PLAN
-  otherwise                         => SAFE: every world that follows the plan
-                                       satisfies the protocol
+  QueryViolation: Instance found   => QUERY_MISMATCH: the plan permits worlds
+                                       that omit or contradict the query
+  otherwise                         => SAFE: the plan is feasible, satisfies the
+                                       protocol, and preserves the released query
 """
 import hashlib
 import os
 import re
 import subprocess
 import sys
+import time
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 if os.path.dirname(BASE) not in sys.path:
@@ -99,99 +106,81 @@ except ImportError:
     _load_env_file_if_present(os.path.join(BASE, ".env"))
 
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek").lower()
+LLM_PROVIDER = "claude"
 DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "30000"))
-
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_THINKING = os.getenv("DEEPSEEK_THINKING", "enabled")
-DEEPSEEK_REASONING_EFFORT = os.getenv("DEEPSEEK_REASONING_EFFORT", "low")
 
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-4-6")
 
-_deepseek_client = None
 _anthropic_client = None
 
 
-def _get_deepseek_client():
-    global _deepseek_client
-    if _deepseek_client is None:
-        from openai import OpenAI
-        _deepseek_client = OpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=DEEPSEEK_BASE_URL,
-        )
-    return _deepseek_client
 
 
 def _get_anthropic_client():
     global _anthropic_client
     if _anthropic_client is None:
         from anthropic import Anthropic
-        _anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        _anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"),
+                                      timeout=120, max_retries=0)
     return _anthropic_client
 
 
-def _call_deepseek(prompt, max_new_tokens, temperature):
-    client = _get_deepseek_client()
-    kwargs = {
-        "model": DEEPSEEK_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_new_tokens,
-        "stream": False,
-    }
-    if DEEPSEEK_MODEL.startswith("deepseek-v4"):
-        thinking_on = DEEPSEEK_THINKING.lower() == "enabled"
-        kwargs["extra_body"] = {
-            "thinking": {"type": "enabled" if thinking_on else "disabled"}
-        }
-        if thinking_on:
-            kwargs["reasoning_effort"] = DEEPSEEK_REASONING_EFFORT
-        else:
-            kwargs["temperature"] = temperature
-    else:
-        kwargs["temperature"] = temperature
-
-    try:
-        response = client.chat.completions.create(**kwargs)
-    except TypeError:
-        # Older openai SDKs may not accept `reasoning_effort`; keep the call
-        # usable while preflight nudges users to upgrade.
-        kwargs.pop("reasoning_effort", None)
-        response = client.chat.completions.create(**kwargs)
-    choice = response.choices[0]
-    if not (choice.message.content or "").strip():
-        # with thinking on, a reply can spend the whole token budget reasoning
-        # and come back with no answer (finish_reason "length")
-        print("      [LLM] empty answer (finish_reason=%s, usage=%s)"
-              % (choice.finish_reason, getattr(response, "usage", None)), flush=True)
-    return choice.message.content
 
 
-def _call_claude_api(prompt, max_new_tokens, temperature):
+def _stream_claude_response(prompt, max_new_tokens, temperature):
     client = _get_anthropic_client()
-    message = client.messages.create(
+    started = time.monotonic()
+    last_report = started
+    characters = 0
+    print(f"      [Claude] requesting response (max_tokens={max_new_tokens})", flush=True)
+    # Large output budgets require streaming; collect the complete response for callers.
+    with client.messages.stream(
         model=CLAUDE_MODEL,
         max_tokens=max_new_tokens,
         temperature=temperature,
         messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
+    ) as stream:
+        for event in stream:
+            if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                characters += len(event.delta.text)
+            now = time.monotonic()
+            if now - last_report >= 15:
+                print(f"      [Claude] receiving: {characters} characters, {now - started:.0f}s",
+                      flush=True)
+                last_report = now
+            if now - started > 600:
+                raise TimeoutError("Claude response exceeded the 600-second limit")
+        message = stream.get_final_message()
+    print(f"      [Claude] response complete in {time.monotonic() - started:.1f}s", flush=True)
+    return "\n".join(block.text for block in message.content if block.type == "text").strip()
 
 
-# Provider-neutral LLM call. Name kept for existing call sites.
+def _call_claude_api(prompt, max_new_tokens, temperature):
+    import anthropic
+    import httpx
+
+    # SDK retries do not cover disconnects while consuming an established stream.
+    transient = (httpx.TransportError, anthropic.APIConnectionError,
+                 anthropic.RateLimitError, anthropic.InternalServerError)
+    for attempt in range(3):
+        try:
+            return _stream_claude_response(prompt, max_new_tokens, temperature)
+        except transient as error:
+            if attempt == 2:
+                raise
+            delay = 2 ** (attempt + 1)
+            print(f"      [Claude] {type(error).__name__}; retrying request "
+                  f"{attempt + 2}/3 in {delay}s", flush=True)
+            time.sleep(delay)
+
+
 def call_claude(prompt, max_new_tokens=DEFAULT_MAX_TOKENS, temperature=0.7):
-    if LLM_PROVIDER == "deepseek":
-        text = _call_deepseek(prompt, max_new_tokens, temperature)
-    elif LLM_PROVIDER == "claude":
-        text = _call_claude_api(prompt, max_new_tokens, temperature)
-    else:
-        raise ValueError("Unknown LLM_PROVIDER='%s' (expected deepseek or claude)" % LLM_PROVIDER)
+    text = _call_claude_api(prompt, max_new_tokens, temperature)
 
     with open("ai_log.txt", "a", encoding="utf-8") as f:
         f.write("[provider=%s model=%s]\n%s\n\n%s\n\n" % (
             LLM_PROVIDER,
-            DEEPSEEK_MODEL if LLM_PROVIDER == "deepseek" else CLAUDE_MODEL,
+            CLAUDE_MODEL,
             text,
             "=" * 60,
         ))
@@ -336,7 +325,7 @@ def compare_path_for(protocol):
 # ---------------- Wiring: <protocol>.als -> <protocol>_compare.als ----------------
 
 def build_compare_file(protocol=None, scope=None, truth_path=None, out_path=None,
-                       extension_lines=None):
+                       extension_lines=None, formal_query=None):
     """Build the verifier file from a ground-truth protocol.
 
     Writes, all in the verifier file's directory (Alloy resolves `open` there):
@@ -380,6 +369,13 @@ def build_compare_file(protocol=None, scope=None, truth_path=None, out_path=None
         if stale:
             os.remove(extension_path)   # a previous query's words; this verifier file does not open it
 
+    query_block = (formal_query or "").strip()
+    if query_block and not re.fullmatch(r"pred\s+rule\s*\{.*\}", query_block, re.S):
+        raise ValueError("formal_query must be the released pred rule block")
+    query_commands = ""
+    if query_block:
+        query_commands = f"run QueryViolation {{ GeneratedPlan and not rule }} {scope}\n"
+    possible = "GeneratedPlan and rule" if query_block else "GeneratedPlan"
     verifier = (
         "".join("open %s\n" % module for module in opens) +
         "\n// ===========================================================\n"
@@ -387,15 +383,17 @@ def build_compare_file(protocol=None, scope=None, truth_path=None, out_path=None
         "// -----------------------------------------------------------\n"
         "// CounterExample: a world that follows the plan and breaks the protocol.\n"
         "//   Instance found => UNSAFE.\n"
-        "// PlanPossible: the plan can happen at all.\n"
+        "// PlanPossible: the plan can happen in the released query's scenario.\n"
         "//   No instance found => IMPOSSIBLE_PLAN (a missing counterexample would be vacuous).\n"
-        "// SAFE = no CounterExample and some PlanPossible instance.\n"
+        "// SAFE also requires no QueryViolation when a released query is supplied.\n"
         "// ===========================================================\n"
         "pred GeneratedPlan {\n"
         "  // LLM fills this in\n"
         "}\n\n"
+        + (query_block + "\n\n" if query_block else "") +
         f"run CounterExample {{ GeneratedPlan and not Protocol }} {scope}\n"
-        f"run PlanPossible {{ GeneratedPlan }} {scope}\n"
+        f"run PlanPossible {{ {possible} }} {scope}\n"
+        + query_commands
     )
 
     save_file(verifier, out_path)
@@ -422,7 +420,7 @@ def verifier_source(compare_path):
 
 
 def ensure_compare_file(protocol=None, scope=None, rebuild=True, verbose=True,
-                        extension_lines=None):
+                        extension_lines=None, formal_query=None):
     """Make sure the verifier file for `protocol` is fresh.
 
     Rebuilding by default matters: a stale compare file still holds the previous
@@ -433,11 +431,11 @@ def ensure_compare_file(protocol=None, scope=None, rebuild=True, verbose=True,
     source = protocol["path"] if protocol else TRUTH_PATH
     scope = scope or (protocol["scope"] if protocol else ALLOY_SCOPE_DEFAULT)
 
-    if not rebuild and os.path.exists(out_path):
+    if not rebuild and os.path.exists(out_path) and not formal_query:
         return out_path
 
     path = build_compare_file(protocol=protocol, scope=scope, out_path=out_path,
-                              extension_lines=extension_lines)
+                              extension_lines=extension_lines, formal_query=formal_query)
     if verbose:
         print("[wiring] %s -> %s (scope: %s)" % (
             os.path.basename(source), os.path.basename(path), scope
@@ -448,18 +446,23 @@ def ensure_compare_file(protocol=None, scope=None, rebuild=True, verbose=True,
 protocol_rules = pm.protocol_rules
 
 
-def run_alloy(file_path):
+def run_alloy(file_path, *, syntax_only=False):
     """Run every command in the verifier file; returns (compiled, output, status).
 
     The output holds, per command, `COMMAND <label>: Instance found | No instance
     found`, and for an instance its atoms and one `RULE <name>: holds | VIOLATED`
     line per protocol rule, which is what the repair prompt shows the LLM.
+    `syntax_only` bypasses the plan-content restriction for compilation metrics;
+    its result must not be used to accept a full pipeline plan.
     """
     file_path = os.path.abspath(file_path)
     rules = []
     for path in opened_modules(file_path) + [file_path]:
         with open(path, "r", encoding="utf-8") as f:
-            rules = rules or protocol_rules(f.read())
+            source = f.read()
+        rules = rules or protocol_rules(source)
+    with open(file_path, "r", encoding="utf-8") as f:
+        verifier = f.read()
 
     # compile if needed: missing, or older than its source (a stale class would
     # silently keep the previous output format and verdict rules)
@@ -473,17 +476,28 @@ def run_alloy(file_path):
             return False, result.stderr, "ERROR"
 
     run_cmd = ["java", "-cp", "." + os.pathsep + JAR, "AlloyCommandline", file_path, *rules]
-    result = subprocess.run(
-        run_cmd, cwd=JAVA_DIR, capture_output=True, text=True
-    )
+    if syntax_only:
+        run_cmd.append("--syntax-only")
+    print("      [Alloy] " + ("compiling" if syntax_only else "checking plan"), flush=True)
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            run_cmd, cwd=JAVA_DIR, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return False, "Alloy exceeded the 120-second limit", "TIMEOUT"
+    print(f"      [Alloy] completed in {time.monotonic() - started:.1f}s", flush=True)
 
     # Kodkod's INFO progress lines go to stderr; keep only what explains a failure
     stderr = "\n".join(line for line in result.stderr.splitlines()
                        if "INFO kodkod" not in line)
     output = (result.stdout + ("\n" + stderr if stderr.strip() else "")).strip()
+    if result.returncode != 0:
+        return False, output, "ERROR"
 
     status = interpret_status(output)
-    return status not in ("SYNTAX_ERROR", "UNKNOWN"), output, status
+    if not syntax_only and "run QueryViolation" in verifier and command_outcome(output, "QueryViolation") is None:
+        status = "UNKNOWN" if status not in ("SYNTAX_ERROR", "INVALID_PLAN") else status
+    return status not in ("SYNTAX_ERROR", "UNKNOWN", "INVALID_PLAN"), output, status
 
 
 def command_outcome(output, label):
@@ -504,47 +518,6 @@ def violated_rules(output):
 
 def is_safe(output):
     return interpret_status(output) == "SAFE"
-
-
-def validate_plan_substance(plan, protocol=None):
-    """Reject parseable-but-empty plans before asking Alloy.
-
-    Alloy can only answer the formal safety question; it cannot tell whether
-    the LLM actually described a usable plan. This lightweight gate catches the
-    most common degenerate answers before verification.
-
-    With `protocol`, the vocabulary check is derived from that protocol's own
-    signatures, so it works for any domain. Without one it keeps the original
-    aquatic-specific rules, which is what the batch experiment drivers expect.
-    """
-    issues = []
-    body = plan or ""
-    assignments = re.findall(r"\.\w+\s*=", body)
-    declarations = re.findall(r"\bsome\s+[^{}|]+:", body)
-
-    if protocol is not None:
-        referenced = {s for s in protocol["sigs"] if re.search(r"\b%s\b" % re.escape(s), body)}
-        if len(assignments) < 8:
-            issues.append("Use at least 8 concrete field assignments.")
-        if not declarations:
-            issues.append("Declare concrete atoms with `some ...`.")
-        if len(referenced) < 3:
-            issues.append(
-                "Reference at least 3 signatures from %s (available: %s)."
-                % (protocol["file"], ", ".join(protocol["sigs"][:12]))
-            )
-        return (not issues), issues
-
-    # only what any plan needs: concrete atoms and concrete values. Which people,
-    # zones or incidents a plan must mention depends on the situation (a
-    # lightning closure concerns the facility, not a zone), and Alloy's
-    # counterexample search is what judges whether the plan is safe.
-    if len(assignments) < 8:
-        issues.append("Use at least 8 concrete field assignments.")
-    if not declarations:
-        issues.append("Declare concrete atoms with `some ...`.")
-
-    return (not issues), issues
 
 
 # ---------------- Semantic layer: which protocol governs this situation? ----------------
@@ -785,6 +758,8 @@ The predicate must be a concrete, non-trivial plan for the specific TASK:
 - set enough fields to show what is allowed, denied, closed, evacuated, or required.
 Do not answer with a placeholder such as `some Patron`, one hygiene field, or an
 empty/avoidant plan.
+Do not invoke Protocol or its safety predicates/functions. State concrete
+constraints whose safety can be checked independently against those predicates.
 """
 
 # The contract above names patrons, zones and facilities, which only makes sense
@@ -804,6 +779,8 @@ The predicate must be a concrete, non-trivial plan for the specific TASK:
 - set enough fields to show what is required, permitted, denied, or must happen next.
 Available signatures: {sigs}
 Do not answer with a placeholder, a single field, or an empty/avoidant plan.
+Do not invoke Protocol or its safety predicates/functions. State concrete
+constraints whose safety can be checked independently against those predicates.
 """
 
 
@@ -1018,8 +995,12 @@ def formalize_query(user_prompt, protocol_path, stage_dir, settings=None, client
 
     stage = Path(stage_dir)
     stage.mkdir(parents=True, exist_ok=True)
-    settings = settings or roundtrip.Settings()
+    settings = settings or roundtrip.Settings(model=CLAUDE_MODEL, judge_model=CLAUDE_MODEL)
+    if settings.model != CLAUDE_MODEL or (settings.judge_model or settings.model) != CLAUDE_MODEL:
+        raise ValueError("All pipeline LLM stages must use the configured CLAUDE_MODEL")
     client = client or roundtrip.LLM(settings.model)
+    if getattr(client, "model", CLAUDE_MODEL) != CLAUDE_MODEL:
+        raise ValueError("The roundtrip client must use the configured CLAUDE_MODEL")
     protocol_text = Path(protocol_path).read_text(encoding="utf-8")
     core = pm.split_protocol(protocol_text)[0]
     extension, history = [], []
@@ -1167,27 +1148,34 @@ FULL Alloy file:
     return call_claude(prompt, temperature=0.7)
 
 
-COUNTEREXAMPLE_GOAL = """Alloy checks GeneratedPlan against `pred Protocol` in the file below by
-searching for a counterexample: a world that follows GeneratedPlan but violates
-Protocol. It found one (shown below). Modify GeneratedPlan so that no
-counterexample exists, while it still answers the TASK."""
+COUNTEREXAMPLE_GOAL = """Repair the failure described in the verifier result below.
+The plan must be feasible, admit no protocol violation, and preserve the released
+query's situation facts in every world it permits. Describe concrete constraints;
+do not invoke Protocol or its safety predicates/functions to assert compliance."""
 
 
 def interpret_status(alloy_output):
-    """Interpret the verifier's two commands (see the module docstring).
+    """Interpret safety, feasibility, and optional query commands.
 
     A type warning counts as a syntax error: the runner stops at it, because a
     comparison between disjoint types is constantly false and silently changes
     what the plan says (the roundtrip applies the same rule to `pred rule`)."""
+    if alloy_output.startswith("INVALID_PLAN:"):
+        return "INVALID_PLAN"
+    if alloy_output.startswith("COMPILED:"):
+        return "COMPILED"
     if ("Syntax error" in alloy_output or "Type error" in alloy_output
             or "Type warning:" in alloy_output):
         return "SYNTAX_ERROR"
     counterexample = command_outcome(alloy_output, "CounterExample")
     possible = command_outcome(alloy_output, "PlanPossible")
+    query_violation = command_outcome(alloy_output, "QueryViolation")
     if counterexample == "Instance found":
         return "UNSAFE"
     if counterexample == "No instance found" and possible == "No instance found":
         return "IMPOSSIBLE_PLAN"
+    if query_violation == "Instance found":
+        return "QUERY_MISMATCH"
     if counterexample == "No instance found" and possible == "Instance found":
         return "SAFE"
     return "UNKNOWN"
@@ -1210,11 +1198,15 @@ def counterexample_feedback(alloy_output):
         )
     if status == "IMPOSSIBLE_PLAN":
         return (
-            "GeneratedPlan cannot be satisfied at all: it contradicts itself or the "
+            "GeneratedPlan cannot be satisfied with the released query (if supplied): "
+            "it contradicts the query, itself, or the "
             "structural facts of the model (e.g. a zone outside every facility, a "
             "one-way buddy pair, a type mismatch that is always false). A plan no "
             "world can follow is not a plan, so the missing counterexample means nothing."
         )
+    if status == "QUERY_MISMATCH":
+        return ("GeneratedPlan admits a world that does not satisfy the released query. "
+                "Preserve the query's situation facts in the plan.\n" + alloy_output)
     return alloy_output
 
 
@@ -1226,27 +1218,33 @@ def run_with_trace(user_prompt, compare_path=COMPARE_PATH, max_iters=6, verbose=
       SAFE            = no CounterExample instance, and a PlanPossible instance.
       UNSAFE          = a CounterExample instance: the plan admits a protocol violation.
       IMPOSSIBLE_PLAN = no PlanPossible instance: the plan cannot happen at all.
+      QUERY_MISMATCH  = the plan admits a world that does not satisfy the query.
+      INVALID_PLAN   = the plan invokes the safety specification or its helpers.
     UNSAFE and IMPOSSIBLE_PLAN both go to a logic repair, which shows the LLM the
     counterexample world and the violated rules (or why the plan is impossible).
 
     The semantic layer (protocol selection) is NOT run here -- it belongs to the
     interactive entry point. This function verifies against whatever
     `compare_path` it is handed, which is what the batch drivers need.
-    `protocol` is optional and only sharpens the substance check.
+    `protocol` supplies the model when rebuilding and the generation contract.
 
     `rebuild` defaults to OFF: the experiment drivers build their own compare
     file before calling this. Pass rebuild=True to derive `compare_path` from
     the protocol first.
     """
     if rebuild:
-        build_compare_file(protocol=protocol, out_path=compare_path)
+        build_compare_file(protocol=protocol, out_path=compare_path, formal_query=formal_query)
+    if formal_query:
+        with open(compare_path, "r", encoding="utf-8") as f:
+            source = f.read()
+        if formal_query.strip() not in source or "run QueryViolation" not in source:
+            raise ValueError("Build the verifier with formal_query before running the plan loop")
 
     iterations = []
     status = None
     plan = ""
     alloy_logs = ""
     raw_response = ""
-    substance_feedback = ""
 
     for it in range(1, max_iters + 1):
         if it == 1 or status == "EMPTY_RESPONSE":
@@ -1272,30 +1270,6 @@ Previous response:
 
 Error:
 {alloy_logs}
-
-Reference code:
-{code}
-""", temperature=0)
-        elif status == "NON_SUBSTANTIVE":
-            kind = "substance_repair"
-            code = verifier_source(compare_path)
-            raw_response = call_claude(f"""
-Your previous reply compiled as a predicate-shaped block, but it was not a
-substantive plan for the TASK.
-
-TASK:
-{user_prompt}
-{formal_query_section(formal_query)}
-Problems to fix:
-{substance_feedback}
-
-RULES:
-{output_contract(protocol)}
-- Use ONLY variables, signatures, and fields already defined in the file below.
-- Do NOT invent new names.
-
-Previous plan:
-{plan}
 
 Reference code:
 {code}
@@ -1347,24 +1321,6 @@ Verifier result:
             continue
 
         plan = new_plan
-        substantive, issues = validate_plan_substance(plan, protocol=protocol)
-        if not substantive:
-            status = "NON_SUBSTANTIVE"
-            substance_feedback = "\n".join(f"- {issue}" for issue in issues)
-            alloy_logs = substance_feedback
-            iterations.append({
-                "iter": it,
-                "kind": kind,
-                "status": status,
-                "plan": plan,
-                "raw_response": raw_response or "",
-                "alloy_output": alloy_logs,
-                "ran_alloy": False,
-            })
-            if verbose:
-                print(f"      iter {it} ({kind}): {status}")
-            continue
-
         with open(compare_path, "r") as f:
             code = f.read()
         updated = replace_generated_plan(code, plan)
@@ -1372,7 +1328,7 @@ Verifier result:
 
         success, alloy_logs, run_status = run_alloy(compare_path)
         status = interpret_status(alloy_logs)
-        if not success and status == "UNKNOWN":
+        if not success:
             status = run_status
 
         iterations.append({
@@ -1435,7 +1391,8 @@ def generate_and_verify(user_prompt, rounds=1, confirm=None, rebuild=True,
     # formal query's extension words so the plan can use them too ----
     compare_path = ensure_compare_file(
         protocol=protocol, rebuild=rebuild,
-        extension_lines=(formal_query or {}).get("extension") or None)
+        extension_lines=(formal_query or {}).get("extension") or None,
+        formal_query=(formal_query or {}).get("rule"))
 
     # ---- generate, verify, repair: the same loop the experiment drivers run,
     # so both entry points share every prompt and every verdict rule ----

@@ -51,32 +51,15 @@ def preflight(*, dry_run: bool) -> List[str]:
 
     problems: List[str] = []
 
-    # ---- LLM provider ----
-    provider = os.getenv("LLM_PROVIDER", "deepseek").lower()
-    if provider == "deepseek":
-        try:
-            import openai  # noqa: F401
-        except ImportError:
-            problems.append(
-                "DeepSeek path needs the `openai` SDK. Install with:\n"
-                "      pip install openai")
-        if not os.getenv("DEEPSEEK_API_KEY"):
-            problems.append(
-                "DEEPSEEK_API_KEY is not set. Export it before running:\n"
-                "      export DEEPSEEK_API_KEY=sk-...")
-    elif provider == "claude":
-        try:
-            import anthropic  # noqa: F401
-        except ImportError:
-            problems.append(
-                "Claude path needs the `anthropic` SDK. Install with:\n"
-                "      pip install anthropic")
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            problems.append(
-                "ANTHROPIC_API_KEY is not set. Export it before running:\n"
-                "      export ANTHROPIC_API_KEY=sk-ant-...")
-    else:
-        problems.append(f"Unknown LLM_PROVIDER='{provider}' (expected 'deepseek' or 'claude').")
+    # ---- Shared Claude model for every LLM stage ----
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        problems.append("Claude needs the anthropic SDK. Install with: pip install anthropic")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        problems.append("ANTHROPIC_API_KEY is not set; export it before running.")
+    if not pipeline.CLAUDE_MODEL.startswith("claude"):
+        problems.append("CLAUDE_MODEL must name a Claude model.")
 
     # ---- Java runtime (Alloy CLI requirement) ----
     java = shutil.which("java")
@@ -145,18 +128,19 @@ ALLOY_SCOPE_DEFAULT    = "for 5 but 9 Int"
 # 1. Build swimming_compare.als at experiment startup
 # =============================================================================
 
-def build_compare_file(scope: str = ALLOY_SCOPE_DEFAULT, extension_lines=None) -> str:
+def build_compare_file(scope: str = ALLOY_SCOPE_DEFAULT, extension_lines=None, formal_query=None) -> str:
     """Build swimming_compare.als from safety_protocol.als.
 
     Delegates to pipeline_generated.build_compare_file so the verifier file and
     the verdict logic that reads its output come from one place: the file holds
     `run CounterExample { GeneratedPlan and not Protocol }` and
-    `run PlanPossible { GeneratedPlan }`, and pipeline_generated.interpret_status
-    reads exactly those two commands. `extension_lines` are the prompt's formal
+    `run PlanPossible { GeneratedPlan and rule }` and a QueryViolation check
+    when a released query is supplied. `extension_lines` are the prompt's formal
     query extension words, opened so the plan can use them too."""
     return pipeline.build_compare_file(truth_path=TRUTH_FILE, scope=scope,
                                        out_path=COMPARE_FILE,
-                                       extension_lines=extension_lines)
+                                       extension_lines=extension_lines,
+                                       formal_query=formal_query)
 
 
 # =============================================================================
@@ -453,7 +437,8 @@ def _run_one_prompt(prompt_obj: Dict,
     # Reset the GeneratedPlan slot in the compare file before each prompt so
     # the pipeline always starts from the clean safety code, opening this
     # prompt's extension words (if its formal query needed any).
-    build_compare_file(scope=scope, extension_lines=formal_query.get("extension") or None)
+    build_compare_file(scope=scope, extension_lines=formal_query.get("extension") or None,
+                       formal_query=formal_query.get("rule"))
 
     # Tell the dry-run mock which scenario this is so its cursor starts fresh.
     if dry_run:
@@ -1683,8 +1668,8 @@ def main() -> int:
                              "pass@k (default 5)")
     parser.add_argument("--passk-kmax", type=int, default=MAX_ITERATIONS_DEFAULT,
                         help="highest k to evaluate in the pass@k experiment "
-                             "(default 10; evaluates pass@1 … pass@k_max, "
-                             "capped at n because pass@k requires n >= k)")
+                             "(default 10; evaluates pass@1 … pass@k_max; "
+                             "the no-loop Chen estimator is undefined for k > n)")
     parser.add_argument("--passk-plot-only", action="store_true",
                         help="skip the pass@k experiment; re-score the existing "
                              "pass@k log under the current definition and re-plot")
@@ -1726,8 +1711,9 @@ def main() -> int:
     # --------------------------------------------------------------- load prompts
     with open(args.prompts, "r", encoding="utf-8") as f:
         prompts = json.load(f).get("prompts", [])
+    prompts = [prompt for prompt in prompts if prompt.get("eval_usable", True)]
     if not prompts:
-        print(f"no prompts found in {args.prompts}", file=sys.stderr)
+        print(f"no usable prompts found in {args.prompts}", file=sys.stderr)
         return 2
 
     issues = preflight(dry_run=args.dry_run)

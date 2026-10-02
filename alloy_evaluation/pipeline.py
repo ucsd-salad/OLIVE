@@ -35,8 +35,7 @@ from nli.compare import compare as compare_nli
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_MODEL = "deepseek-chat"
-DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEFAULT_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-4-6")
 
 
 @dataclass
@@ -52,6 +51,12 @@ class Settings:
     alloy_timeout: int = 120
     run_nli: bool = True
     nli_model: str = "facebook/bart-large-mnli"
+
+    def __post_init__(self):
+        if not self.model.startswith("claude"):
+            raise PipelineError("The roundtrip must use a Claude model")
+        if self.judge_model and self.judge_model != self.model:
+            raise PipelineError("Generation and judgment must use the same Claude model")
 
 
 class PipelineError(RuntimeError):
@@ -718,26 +723,15 @@ class LLM:
     base_url: str = ""
 
     def __post_init__(self) -> None:
-        from openai import OpenAI
+        from anthropic import Anthropic
 
-        self.api_key = (
-            self.api_key
-            or os.environ.get("ROUNDTRIP_API_KEY", "")
-            or os.environ.get("DEEPSEEK_API_KEY", "")
-            or os.environ.get("OPENAI_API_KEY", "")
-        ).strip()
+        if not self.model.startswith("claude"):
+            raise PipelineError("The roundtrip must use a Claude model")
+        self.api_key = (self.api_key or os.getenv("ANTHROPIC_API_KEY", "")).strip()
         if not self.api_key:
-            raise PipelineError(
-                "set ROUNDTRIP_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY"
-            )
-        self.base_url = (
-            self.base_url
-            or os.environ.get("ROUNDTRIP_BASE_URL", "")
-            or os.environ.get("DEEPSEEK_BASE_URL", "")
-            or os.environ.get("OPENAI_BASE_URL", "")
-            or DEFAULT_BASE_URL
-        ).strip()
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=180)
+            raise PipelineError("set ANTHROPIC_API_KEY")
+        options = {"base_url": self.base_url} if self.base_url else {}
+        self.client = Anthropic(api_key=self.api_key, timeout=180, **options)
 
     def complete(
         self,
@@ -748,42 +742,41 @@ class LLM:
         max_tokens: int,
         model: str | None = None,
     ) -> str:
-        import openai
+        import anthropic as sdk
 
         selected_model = model or self.model
+        if selected_model != self.model:
+            raise PipelineError("All roundtrip LLM calls must use the same Claude model")
         parameters: dict = {
             "model": selected_model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
             "max_tokens": max_tokens,
+            "temperature": temperature,
         }
-        if "reasoner" not in selected_model:
-            parameters["temperature"] = temperature
 
         transient = (
-            openai.RateLimitError,
-            openai.APIConnectionError,
-            openai.APITimeoutError,
-            openai.InternalServerError,
+            sdk.RateLimitError,
+            sdk.APIConnectionError,
+            sdk.APITimeoutError,
+            sdk.InternalServerError,
         )
         response = None
         last_error: Exception | None = None
         for attempt in range(5):
             try:
-                response = self.client.chat.completions.create(**parameters)
+                response = self.client.messages.create(**parameters)
                 break
             except transient as error:
                 last_error = error
                 time.sleep(min(2**attempt, 30) + random.random())
-            except openai.APIStatusError as error:
+            except sdk.APIStatusError as error:
                 raise PipelineError(
                     f"{selected_model} rejected the request: HTTP {error.status_code}"
                 ) from error
         if response is None:
             raise PipelineError(f"{selected_model} failed after retries: {last_error}")
-        text = (response.choices[0].message.content or "").strip()
+        text = "\n".join(block.text for block in response.content if block.type == "text").strip()
         if not text:
             raise PipelineError(f"{selected_model} returned an empty response")
         return text
