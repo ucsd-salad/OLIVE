@@ -2,6 +2,7 @@
   "meta": {
     "description": "10 real-world aquatic-safety scenarios used to drive the LLM-plan-verification pipeline. Each `prompt` is a paraphrase of an ACTUAL user-posted question on a public Q&A forum, parenting board, or freediving community, OR of a real news incident. The verbatim text from the original post is preserved in `source.original_excerpt` so the link between our scenario and the cited URL can be checked. The regulation that the plan is verified against is a separate field (`ground_truth_reference`) so the reader can clearly tell where the question came from vs. what rule it tests.",
     "verification_truth": "safety_protocol.als",
+    "evaluation_eligibility": "Prompts with eval_usable=false are retained for provenance but excluded from evaluation. Prompts 1, 2, and 10 require incident states incompatible with the current query-preserving, single-state verifier. Remaining prompts are eligible, not certified as faithfully modeled.",
     "semantic": "After the LLM fills in `pred GeneratedPlan`, the verifier runs `run CounterExample { GeneratedPlan and not Protocol } for 5 but 9 Int` and `run PlanPossible { GeneratedPlan } for 5 but 9 Int`, where `Protocol` is the conjunction of the protocol's safety rules. CounterExample 'Instance found' => a world that follows the plan breaks the protocol (UNSAFE); PlanPossible 'No instance found' => the plan cannot happen (IMPOSSIBLE_PLAN); otherwise SAFE.",
     "sourcing_disclosure": "We deliberately did NOT make the scenarios up. Every prompt is grounded in: (a) a real user post we can link to, with the user's own wording included as `original_excerpt`; or (b) a documented news incident. The earlier version of this file cited regulations directly, which conflated 'source of the question' with 'authority being tested'. This version separates them.",
     "situation": "`situation` is the part of `prompt` that states facts: questions, requests and background asides are left out. Only `situation` is formalized and compared by NLI in step 1; plans are generated from the full `prompt`."
@@ -9,6 +10,8 @@
   "prompts": [
     {
       "id": 1,
+      "eval_usable": false,
+      "eval_exclusion_reason": "Shallow diving while in water contradicts Protocol; requires separate incident and response states.",
       "category": "diving_depth",
       "swimming_txt_section": "4.3, 5.3",
       "prompt": "Documented news incident at a real community pool: a 13-year-old boy at Old Orchard Park community pool in Frisco, Texas dove head-first into the SHALLOW END of the pool (trying to flee a wasp), struck the bottom, fractured his C4 and C5 vertebrae, and was left without motor or sensory function below the level of injury (now described as quadriplegic). Imagine the same scenario at OUR facility: a teenage patron performs a head-first dive into the shallow zone of one of our pools. Generate a plan describing whether this behavior is permitted at our facility, where head-first dives ARE permitted (depth/zone), and what the lifeguard's required intervention must be.",
@@ -27,6 +30,8 @@
     },
     {
       "id": 2,
+      "eval_usable": false,
+      "eval_exclusion_reason": "An infant in a spa contradicts Protocol's age >=14 restriction; requires separate incident and response states.",
       "category": "spa_age_limit",
       "swimming_txt_section": "5.5",
       "prompt": "A young mother is in our facility's hot tub with her 16-month-old son. Our posted rule says children under the spa's minimum age are not allowed in. She is mostly holding him on her lap, but at one point he fell face-first into the water; she has no flotation device on him. A bystander asks staff whether this is permitted, and at what age it would become permitted. Generate a plan describing whether this 16-month-old's spa entry is allowed at our facility and the lifeguard's response.",
@@ -171,6 +176,8 @@
     },
     {
       "id": 10,
+      "eval_usable": false,
+      "eval_exclusion_reason": "Hyperventilation contradicts Protocol's prohibited-behavior restriction; requires separate incident and response states.",
       "category": "breath_holding",
       "swimming_txt_section": "4.3",
       "prompt": "A real first-hand freediver post on DeeperBlue describes losing consciousness within seconds after '10+ big fast breaths' before going underwater. At our pool, a teenager tells his friends he is going to 'set a personal record,' performs about 10 rapid deep breaths on the deck, then tries to swim a full underwater lap. Generate a plan describing whether staff intervene, on what authority, and what their response is.",

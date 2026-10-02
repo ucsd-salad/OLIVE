@@ -58,6 +58,24 @@ contradicts the protocol. Those results are not comparable with these.
 
 ## Metrics
 
+### Eligible Prompts
+
+Prompts 1, 2, and 10 are marked `eval_usable: false` and excluded from new
+evaluations. Their incident states contradict the protocol under the current
+single-state, query-preserving verifier. Their text and exclusion reasons
+remain in `swimming_prompts.json`. The default evaluation uses IDs 3 through 9.
+Eligibility does not certify translation fidelity or eliminate known model gaps.
+
+Run the seven-prompt Claude evaluation with five independent runs per prompt:
+
+```bash
+python3 -u alloy_evaluation/plan_verification/stage_passk_evaluator.py --pass-at-k 5 > results/seven_prompt_eval.log 2>&1
+```
+
+Use a fresh output directory, not a resume of a different prompt set. Generated
+data is saved under `results/stage_passk/`. `--prompt-ids 3` selects a single
+eligible prompt; explicitly selecting an unusable prompt is rejected.
+
 ### No-loop and with-loop
 
 - **No-loop:** success rate of the initial plan.
@@ -89,22 +107,22 @@ ranges from 1 to `R`. There is no pass@0.
 ## Setup
 
 ```bash
-pip install openai anthropic matplotlib numpy
+python3 -m pip install --user --upgrade pip
+python3 -m pip install "anthropic==0.86.0" "transformers==4.57.6" torch matplotlib numpy
 brew install openjdk
 ```
 
-Select one LLM provider:
+The query-release gate requires PyTorch and Transformers for BART-MNLI. Its
+first check downloads and caches `facebook/bart-large-mnli`; it makes no Claude
+API call. If NLI is unavailable, queries are not released for plan generation.
+
+All LLM stages use Claude through Anthropic, including query formalization,
+roundtrip judgment, plan generation, and repair. One `CLAUDE_MODEL` setting
+controls the entire pipeline (default: `claude-opus-4-6`).
 
 ```bash
-export LLM_PROVIDER=deepseek
-export DEEPSEEK_API_KEY=sk-...
-```
-
-or:
-
-```bash
-export LLM_PROVIDER=claude
 export ANTHROPIC_API_KEY=sk-ant-...
+export CLAUDE_MODEL=claude-opus-4-6
 ```
 
 ## Commands
