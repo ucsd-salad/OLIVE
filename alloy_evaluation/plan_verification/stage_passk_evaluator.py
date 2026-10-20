@@ -227,7 +227,7 @@ Verifier result:
         pipeline.save_file(
             pipeline.replace_generated_plan(code, plan), str(compare_path))
         success, alloy_logs, run_status = pipeline.run_alloy(
-            str(compare_path), syntax_only=stage == "syntax")
+            str(compare_path), syntax_only=stage == "syntax", timeout=args.alloy_timeout)
         status = pipeline.interpret_status(alloy_logs)
         if not success:
             status = run_status
@@ -292,12 +292,14 @@ def run_sample(prompt: dict[str, Any], rep: int, args: argparse.Namespace) -> di
             return cached
 
     print(f"  [prompt {pid:>2}, rep {rep}] query roundtrip", flush=True)
+    print("[FULL USER PROMPT]\n" + prompt["prompt"], flush=True)
     situation = prompt.get("situation") or swimming.situation_of(prompt["prompt"])
     formal_query = (pipeline.previous_formalization(situation, swimming.TRUTH_FILE, str(query_dir))
                     if args.resume else "none")
     if formal_query == "none":
         formal_query = pipeline.formalize_query(
-            situation, swimming.TRUTH_FILE, str(query_dir), attempts=args.roundtrip_cap)
+            situation, swimming.TRUTH_FILE, str(query_dir), attempts=args.roundtrip_cap,
+            alloy_timeout=args.alloy_timeout)
     else:
         print("    [resume] reusing saved query result", flush=True)
     release = read_json(query_dir / "query_release.json")
@@ -355,6 +357,7 @@ def run_sample(prompt: dict[str, Any], rep: int, args: argparse.Namespace) -> di
 def make_payload(args: argparse.Namespace, per_prompt: dict[str, Any]) -> dict[str, Any]:
     return {
         "config": {
+            "query_release_policy": pipeline.QUERY_RELEASE_POLICY,
             "definition": "Chen et al. pass@k over independent samples",
             "verification": "feasible, safe, query-preserving; specification calls prohibited",
             "provider": pipeline.LLM_PROVIDER,
@@ -370,6 +373,7 @@ def make_payload(args: argparse.Namespace, per_prompt: dict[str, Any]) -> dict[s
             "syntax_cap": args.syntax_cap,
             "logic_cap": args.logic_cap,
             "stage_temperature": args.stage_temperature,
+            "alloy_timeout_seconds": args.alloy_timeout,
             "plan_max_tokens": pipeline.DEFAULT_MAX_TOKENS,
             "scope": args.scope,
             "n_prompts": len(per_prompt),
@@ -412,6 +416,10 @@ def require_valid_infrastructure(run: dict[str, Any]) -> None:
                            for key in ("syntax_samples", "logic_samples")
                            for sample in run.get(key, []))
     failed = failed or any(attempt.get("reason", "").startswith("NLI unavailable:")
+                           for attempt in run.get("query_attempts", []))
+    failed = failed or any(attempt.get("nl_fidelity", {}).get("status") == "ERROR"
+                           for attempt in run.get("query_attempts", []))
+    failed = failed or any(attempt.get("equivalence_status") == "ERROR"
                            for attempt in run.get("query_attempts", []))
     if failed:
         raise ValueError(
@@ -576,9 +584,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         type=float, default=0.7,
                         help="sampling temperature for all plan repair calls")
     parser.add_argument("--scope", default=swimming.ALLOY_SCOPE_DEFAULT)
+    parser.add_argument("--alloy-timeout", type=int, default=pipeline.DEFAULT_ALLOY_TIMEOUT,
+                        help="seconds per plan-verification invocation, shared across all "
+                             "solver checks (default: 600)")
     args = parser.parse_args(argv)
     if args.pass_at_k < 1:
         parser.error("--pass-at-k must be at least 1")
+    if args.alloy_timeout <= 0:
+        parser.error("--alloy-timeout must be positive")
     if args.roundtrip_cap < 1 or args.syntax_cap < 0 or args.logic_cap < 0:
         parser.error("roundtrip cap must be positive; repair caps must be nonnegative")
     if args.plot_only and not args.log:
