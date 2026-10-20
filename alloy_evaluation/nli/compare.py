@@ -5,6 +5,7 @@ from __future__ import annotations
 from nli import start
 
 
+# Paper's post-hoc drift measure, not a query-release decision.
 DRIFT = {"Unrelated", "Contradiction"}
 
 
@@ -21,9 +22,9 @@ def classify(forward: dict, backward: dict) -> str:
     if e_min >= 0.7 and c_max < 0.2:
         return "Equivalent"
     if e_forward >= 0.6 and e_backward < 0.4:
-        return "Strengthened"
-    if e_backward >= 0.6 and e_forward < 0.4:
         return "Weakened"
+    if e_backward >= 0.6 and e_forward < 0.4:
+        return "Strengthened"
     if e_min >= 0.3 and c_max < 0.3:
         return "Related"
     return "Unrelated"
@@ -55,5 +56,5 @@ def compare(original: str, reconstructed: str, model_name: str) -> dict:
         "drift": category in DRIFT,
         "forward": forward,
         "backward": backward,
-        "note": "post-hoc signal only",
+        "note": "NLI classification; the caller defines release and repair policy",
     }
