@@ -16,7 +16,7 @@ Three guarantees hold by construction, and each is checked:
    fact like `fact ProtocolHolds { Protocol }` would make `not Protocol`
    unsatisfiable, so every plan would pass.
 3. The extension only adds words. The model supplies declaration lines in one
-   of three forms (EXTENSION_FORMAT); any other line is rejected, and so is a
+   of four forms (EXTENSION_FORMAT); any other line is rejected, and so is a
    name the core already uses. So it cannot add a fact, change or extend an
    existing signature, or shadow an existing name.
 """
@@ -277,10 +277,11 @@ def build_core(protocol_path: str | Path, out_dir: str | Path) -> Path:
 # ---------------------------------------------------------------- extension
 
 EXTENSION_FORMAT = """\
-One new word per line, each line exactly one of these three forms:
+One new word per line, each line exactly one of these four forms:
   <newName>: set <Sig>                -- <what it means>
   <newName>: <Sig> -> lone Int        -- <what it means>
-  <newName>: <Sig> -> lone <Sig2>     -- <what it means>
+  <newName>: <Sig> -> lone <Sig2>     -- <what it means> (at most one target)
+  <newName>: <Sig> -> set <Sig2>      -- <what it means> (multiple targets)
 <newName> starts with a lower-case letter and is not a name the protocol already
 uses (compared ignoring case); <Sig> and <Sig2> are signatures the protocol declares. Write nothing else:
 no fact, pred, sig, open or braces. A new word is used as `x in QueryExt.<newName>`
@@ -291,7 +292,7 @@ SIG = r"([A-Z][A-Za-z0-9_]*)"
 FORMS = (
     re.compile(rf"^{NAME}\s*:\s*set\s+{SIG}$"),
     re.compile(rf"^{NAME}\s*:\s*{SIG}\s*->\s*lone\s+(Int)$"),
-    re.compile(rf"^{NAME}\s*:\s*{SIG}\s*->\s*lone\s+{SIG}$"),
+    re.compile(rf"^{NAME}\s*:\s*{SIG}\s*->\s*(?:lone|set)\s+{SIG}$"),
 )
 
 
@@ -311,7 +312,7 @@ def check_extension_lines(lines: list[str], core: str) -> tuple[list[tuple[str, 
         meaning = meaning.strip()
         match = next((m for form in FORMS if (m := form.match(declaration))), None)
         if match is None:
-            problems.append("%r is not one of the three extension forms" % line)
+            problems.append("%r is not one of the four extension forms" % line)
             continue
         name, *types = match.groups()
         if not separator or not meaning:

@@ -19,6 +19,7 @@ check if y_original <-> y_prime.als by equivalence.py (alloy check, exhaustive a
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import re
@@ -50,6 +51,7 @@ class Settings:
     max_diagnosis_attempts: int = 3
     alloy_timeout: int = 120
     run_nli: bool = True
+    nl_gate: bool = False
     nli_model: str = "facebook/bart-large-mnli"
 
     def __post_init__(self):
@@ -60,6 +62,10 @@ class Settings:
 
 
 class PipelineError(RuntimeError):
+    pass
+
+
+class AlloyTimeout(PipelineError):
     pass
 
 
@@ -135,12 +141,29 @@ def _outcome(stage_dir: Path, stopped_at: str) -> None:
 
 
 # main
-def run(
+def run(original, vocabulary, stage_dir, settings, client, *, formalization_feedback=""):
+    try:
+        return _run(original, vocabulary, stage_dir, settings, client,
+                    formalization_feedback=formalization_feedback)
+    except AlloyTimeout as error:
+        # Predicate validation timeouts must not enter syntax/translation repair either.
+        (stage_dir / "roundtrip_result.json").write_text(json.dumps({
+            "decided": False, "equivalent": False, "released": False,
+            "equivalence_status": "TIMEOUT", "equivalence_evidence": str(error),
+            "nl_gate": settings.nl_gate, "nl_fidelity": {}}, indent=2) + "\n", encoding="utf-8")
+        print("\n[QUERY CHECK] " + str(error) + "; stopping without translation repair", flush=True)
+        _outcome(stage_dir, "TIMEOUT")
+        return False
+
+
+def _run(
     original: str,
     vocabulary: Vocabulary,
     stage_dir: Path,
     settings: Settings,
     client: LLM,
+    *,
+    formalization_feedback: str = "",
 ) -> bool:
     stage_dir.mkdir(parents=True, exist_ok=True)
     opens = prepare_stage(vocabulary, stage_dir)
@@ -166,6 +189,10 @@ def run(
     original_rule = formalize(
         client, settings, vocabulary, original, stage_dir,
         stage="S1", module_name="y_original",
+        repair_prompt=(f"Formalize the original text faithfully:\n{original}\n"
+                       f"Previous release failure and repair feedback:\n{formalization_feedback}\n"
+                       f"Fixed vocabulary:\n{vocabulary.source}\n"
+                       "Return only the corrected pred rule.") if formalization_feedback else None,
     )
     if original_rule is None:
         print("\n[PIPELINE RETURN]\nfalse", flush=True)
@@ -190,28 +217,70 @@ def run(
         return False
 
     state = State(original_rule, reconstructed, prime_rule, vocabulary)
-    equivalent, evidence, _ = check_equivalence(stage_dir, settings.alloy_timeout, vocabulary)
+    verdict = check_equivalence(stage_dir, settings.alloy_timeout, vocabulary)
+    equivalent, evidence = verdict.equivalent, verdict.evidence
+    repairs = []
+    repairs_path = stage_dir / "roundtrip_repairs.json"
+    repairs_path.write_text("[]\n", encoding="utf-8")
 
-    for round_number in range(1, settings.max_rounds + 1):
-        if equivalent:
+    semantic = {}
+    fidelity = {}
+    released = False
+    for check_number in range(settings.max_rounds + 1):
+        # An undecided solver result is not a translation counterexample.
+        if not verdict.decided:
+            print("\n[QUERY CHECK] undecided; stopping without translation repair", flush=True)
             break
-        diagnosis = diagnose(client, settings, original, state, evidence)
-        print(f"\n[DIAGNOSIS RETURN round {round_number}]", flush=True)
-        print(f"stage: {diagnosis.stage}", flush=True)
-        print(f"reason: {diagnosis.reason}", flush=True)
-        print(f"hint: {diagnosis.hint}", flush=True)
-        print(f"confidence: {diagnosis.confidence}", flush=True)
-
-        print(f"\n[REPAIR round {round_number}: {diagnosis.stage}]", flush=True)
-        updated = repair(client, settings, original, state, diagnosis, stage_dir)
+        if equivalent and settings.nl_gate:
+            semantic = compare_nli(original, state.reconstructed, settings.nli_model)
+            fidelity = nl_fidelity_result(semantic)
+            (stage_dir / "nli_result.json").write_text(
+                json.dumps(semantic, indent=2) + "\n", encoding="utf-8")
+            (stage_dir / "nl_fidelity.json").write_text(
+                json.dumps(fidelity, indent=2) + "\n", encoding="utf-8")
+            print(f"\n[NL GATE] {fidelity['status']}: {fidelity['reason']}", flush=True)
+        released = bool(equivalent and (not settings.nl_gate or fidelity.get("faithful") is True))
+        if released or check_number == settings.max_rounds:
+            break
+        if settings.nl_gate and equivalent and fidelity.get("status") == "ERROR":
+            break
+        round_number = check_number + 1
+        if equivalent and settings.nl_gate:
+            # NLI gives a label, not a root cause or a failing translation stage.
+            print(f"\n[NL RETRY round {round_number}: S1 -> S2 -> S3; no diagnosis]", flush=True)
+            updated = repair(client, settings, original, state, None, stage_dir,
+                             nl_feedback=semantic)
+            entry = {"round": round_number, "stage": "S1->S2->S3",
+                     "kind": "nli_retry", "reason": fidelity["reason"],
+                     "nli": semantic, "nl_fidelity": fidelity}
+        else:
+            diagnosis = diagnose(client, settings, original, state, evidence)
+            print(f"\n[DIAGNOSIS RETURN round {round_number}]", flush=True)
+            print(f"stage: {diagnosis.stage}", flush=True)
+            print(f"reason: {diagnosis.reason}", flush=True)
+            print(f"hint: {diagnosis.hint}", flush=True)
+            print(f"confidence: {diagnosis.confidence}", flush=True)
+            print(f"\n[REPAIR round {round_number}: {diagnosis.stage}]", flush=True)
+            updated = repair(client, settings, original, state, diagnosis, stage_dir)
+            entry = {"round": round_number, "stage": diagnosis.stage,
+                     "kind": "formal_counterexample", "reason": diagnosis.reason,
+                     "hint": diagnosis.hint, "counterexample": evidence}
+        entry["repair_succeeded"] = updated is not None
+        repairs.append(entry)
+        repairs_path.write_text(json.dumps(repairs, indent=2) + "\n", encoding="utf-8")
         print(f"[REPAIR RETURN]\n{str(updated is not None).lower()}", flush=True)
         if updated is None:
             break
         state = updated
-        equivalent, evidence, _ = check_equivalence(stage_dir, settings.alloy_timeout, vocabulary)
+        verdict = check_equivalence(stage_dir, settings.alloy_timeout, vocabulary)
+        equivalent, evidence = verdict.equivalent, verdict.evidence
+        entry["equivalent_after_repair"] = bool(equivalent)
+        repairs_path.write_text(json.dumps(repairs, indent=2) + "\n", encoding="utf-8")
 
     print("\n[NLI RETURN]", flush=True)
-    if not settings.run_nli:
+    if settings.nl_gate:
+        print(f"category: {semantic.get('category')}; NL gate: {fidelity.get('status', 'not checked')}", flush=True)
+    elif not settings.run_nli:
         print("disabled", flush=True)
     else:
         semantic = compare_nli(original, state.reconstructed, settings.nli_model)
@@ -222,9 +291,15 @@ def run(
             print(f"unavailable: {semantic.get('note')}", flush=True)
 
     print("\n[PIPELINE RETURN]", flush=True)
-    print(str(equivalent).lower(), flush=True)
-    _outcome(stage_dir, "none" if equivalent else "EQUIVALENCE")
-    return equivalent
+    print(str(released).lower(), flush=True)
+    (stage_dir / "roundtrip_result.json").write_text(json.dumps({
+        "equivalent": bool(equivalent), "released": released,
+        "decided": verdict.decided, "equivalence_evidence": verdict.evidence,
+        "equivalence_status": ("EQUIVALENT" if equivalent else "DIFFERENT") if verdict.decided
+                              else verdict.failure_status or "UNDECIDED",
+        "nl_gate": settings.nl_gate, "nl_fidelity": fidelity}, indent=2) + "\n", encoding="utf-8")
+    _outcome(stage_dir, "none" if released else "NL_FIDELITY" if equivalent else "EQUIVALENCE")
+    return released
 
 
 def formalize(
@@ -274,6 +349,20 @@ bare name (`True`, `Green`); use `and`, `or`, `not`, `implies`, `iff`, `=`, `!=`
 the vocabulary's comments give. A word of the extension (`QueryExt`) is used as
 `x in QueryExt.word` or `x.(QueryExt.word)`. The text may ask a question or request
 a plan; formalize only the situation it describes, not the question.
+Do not infer current location or behavior from a historical event, a failed test,
+or a requested action. A child failing a swim test involving a diving board does
+not establish that the child is currently in water or in a diving-board zone.
+An instruction to wear a jacket does not establish that it is already worn.
+Represent an instruction, intention, or past event with a field that explicitly
+represents that statement type, not a current-compliance field. Use available
+QueryExt fields for those concepts. If the vocabulary lacks such a field, leave
+the unsupported substitute out; the release diagnosis can request an extension.
+Being at a pool is not being in its water or on its deck. "Recently" and "about"
+do not authorize an exact time or an unstated protocol-specific threshold.
+Do not invent exact ages, elapsed times, wristbands, or other unstated attributes.
+Do not turn a particular incident into a universal safety rule. Vocabulary safety
+rules are not additional facts about this situation. If a stated fact cannot be
+expressed faithfully, do not substitute a stronger or different fact.
 The rule is rejected unless it meets every one of these constraints:
 {hard_constraints("")}
 Do not repeat vocabulary declarations. Reply with one Alloy block only."""
@@ -470,8 +559,8 @@ def check_equivalence(
     stage_dir: Path,
     timeout: int,
     vocabulary: Vocabulary | None = None,
-) -> tuple[bool, str, dict[str, str] | None]:
-    """Equivalent, the evidence for the diagnosis, and the counterexample if any.
+) -> equivalence.Verdict:
+    """Keep decided separate from equivalent so solver failures cannot trigger repair.
     Without `vocabulary` the stage is a context-form one and vocab.als is read."""
     vocabulary = vocabulary or load_vocabulary(stage_dir / "vocab.als")
     original_rule, prime_rule = (
@@ -497,10 +586,20 @@ def check_equivalence(
                         f"within `{scope}`, the protocol's own scope."),
         )
     print("\n[EQUIVALENCE RETURN]", flush=True)
-    print(f"typecheck: {str(verdict.decided).lower()}", flush=True)
+    print(f"decided: {str(verdict.decided).lower()}", flush=True)
     print(f"equivalent: {str(verdict.equivalent).lower()}", flush=True)
     print(verdict.evidence, flush=True)
-    return verdict.equivalent, verdict.evidence, verdict.counterexample
+    return verdict
+
+
+def nl_fidelity_result(semantic):
+    if not semantic.get("available") or semantic.get("category") not in {
+            "Equivalent", "Strengthened", "Weakened", "Related", "Unrelated", "Contradiction"}:
+        return {"faithful": False, "status": "ERROR",
+                "reason": "NLI unavailable: " + str(semantic.get("note", "missing classification"))}
+    passed = semantic["category"] == "Equivalent"
+    return {"faithful": passed, "status": "PASS" if passed else "FAIL",
+            "reason": "NLI classified original versus readback as " + semantic["category"]}
 
 
 DIAGNOSE_SYSTEM = """Audit this translation pipeline:
@@ -508,6 +607,10 @@ S1: original natural language -> original Alloy rule
 S2: original Alloy rule -> reconstructed natural language
 S3: reconstructed natural language -> roundtrip Alloy rule
 
+The original text is authoritative. Never repair a translation by adding safety
+obligations or unstated facts to the original scenario. Preserve existential
+scenario descriptions; do not replace them with universal policy implications.
+Distinguish past events, instructions, and proposed actions from current facts.
 Weigh all three stages together, then report the one that lost the meaning. Do not
 walk through them in order and do not settle on the first stage that looks
 imperfect: a stage is the culprit only if repairing that stage alone would remove
@@ -584,20 +687,25 @@ def repair(
     settings: Settings,
     original: str,
     state: State,
-    diagnosis: Diagnosis,
+    diagnosis: Diagnosis | None,
     stage_dir: Path,
+    *,
+    nl_feedback: dict | None = None,
 ) -> State | None:
     vocabulary = state.vocabulary
-    feedback = " ".join(part for part in (diagnosis.reason, diagnosis.hint) if part)
-
-    if diagnosis.stage not in {"S1", "S2", "S3"}:
-        diagnosis = Diagnosis("S1", "diagnosis unavailable", "regenerate carefully", 0.0)
-        feedback = "diagnosis unavailable; regenerate carefully"
+    if nl_feedback is not None:
+        stage = "S1"
+        feedback = ""
+    else:
+        if diagnosis is None or diagnosis.stage not in {"S1", "S2", "S3"}:
+            diagnosis = Diagnosis("S1", "diagnosis unavailable", "regenerate carefully", 0.0)
+        stage = diagnosis.stage
+        feedback = " ".join(part for part in (diagnosis.reason, diagnosis.hint) if part)
 
     original_rule = state.original_rule
     reconstructed = state.reconstructed
 
-    if diagnosis.stage == "S1":
+    if stage == "S1":
         s1_prompt = f"""Repair S1 only.
 x:
 {original.strip()}
@@ -608,6 +716,32 @@ diagnosis:
 vocabulary:
 {vocabulary.source.strip()}
 Return only the corrected `pred rule`."""
+        if nl_feedback is not None:
+            s1_prompt = f"""Retry the translation chain from the unchanged original scenario.
+The previous original/readback pair did not receive NLI Equivalent. The label
+and scores below do not identify a root cause or which stage failed. Do not
+invent an explanation; produce a faithful translation using the fixed vocabulary.
+Do not add exact age ranges, times, supervision, on-duty staff, or other unstated
+facts. Do not equate parents with chaperones. Do not turn reported instructions,
+intentions, or history into current compliance. Protocol requirements are not
+scenario facts. Preserve stated information without broadening or narrowing it;
+do not alter the original or add facts just to improve the NLI score.
+
+Original scenario (authoritative):
+{original.strip()}
+
+Previous predicate:
+{state.original_rule}
+
+Previous readback:
+{state.reconstructed}
+
+NLI feedback (no override allowed):
+{json.dumps(nl_feedback, indent=2)}
+
+Fixed vocabulary:
+{vocabulary.source.strip()}
+Return only the corrected `pred rule`."""
         original_rule = formalize(
             client, settings, vocabulary, original, stage_dir,
             stage="S1", module_name="y_original", repair_prompt=s1_prompt,
@@ -616,7 +750,7 @@ Return only the corrected `pred rule`."""
             return None
 
     s2_prompt = ""
-    if diagnosis.stage == "S2":
+    if stage == "S2":
         s2_prompt = f"""Repair S2 only.
 y_original:
 {state.original_rule}
@@ -628,7 +762,7 @@ vocabulary:
 {vocabulary.source.strip()}
 Return only the corrected plain-language requirement."""
 
-    if diagnosis.stage in {"S1", "S2"}:
+    if stage in {"S1", "S2"}:
         reconstructed = deformalize(
             client,
             settings,
@@ -641,7 +775,7 @@ Return only the corrected plain-language requirement."""
             return None
 
     s3_prompt = ""
-    if diagnosis.stage == "S3":
+    if stage == "S3":
         s3_prompt = f"""Repair S3 only.
 x_prime:
 {state.reconstructed}
@@ -676,6 +810,8 @@ def typecheck(source: str, path: Path, timeout: int = 120) -> tuple[bool, str]:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8")
     result = alloy.execute(path, timeout=timeout)
+    if result.timed_out:
+        raise AlloyTimeout(result.error)
     if not result.ok:
         return False, result.error
     for name, outcome in result.outcomes.items():
