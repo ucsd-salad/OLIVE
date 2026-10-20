@@ -3,15 +3,56 @@
 This benchmark asks an LLM to create a swimming-safety plan and uses Alloy to
 check it against `safety_protocol.als`.
 
+The dataset's `staff_safety_questions_v3` prompts each contain a situation followed by
+exactly one situation-specific question about a pool-staff safety decision. Wording
+varies with the scenario rather than using a fixed question. These are adaptations,
+not verbatim forum posts. Source excerpts/URLs are retained separately, with disclosed
+benchmark additions and verification status. Prompts 1, 2, and 10 remain excluded.
+Question wording does not prescribe plan output or supply the required safety actions. Start a
+fresh evaluation after this revision; do not combine its samples with older prompts.
+
 ## How it works
 
 Step 1, once per prompt, before any plan: the prompt is formalized over
 `safety_protocol.als` itself as the vocabulary (its signatures and fields, not
 its rules) by the auto-formalization roundtrip (`../pipeline.py`). The formal
-query is released when Alloy proves y_original <-> y_prime and NLI finds no
-drift between the prompt and the readback. On drift an LLM diagnoses the cause;
-VOCABULARY (the protocol has no word for something the prompt says) adds checked
-extension words (`QueryExt`), TRANSLATION reruns as is; at most 5 roundtrips.
+Before the roundtrip, Claude maps source-grounded concepts to existing vocabulary
+and proposes missing extension declarations (`QueryExt`). This preparation is an
+extension to the paper, bounded by the diagnosis-attempt setting.
+Preparation accepts JSON with optional Markdown wrapping. Retries receive the
+previous proposal, all validation errors, and the allowed signature names; missing
+concepts require mappings rather than unsupported types or silently omitted facts.
+Declarations are format-checked and typechecked by Alloy at roundtrip entry. The vocabulary is
+then frozen for S1, S2, S3 and all scoped repairs. Instructions, intentions, history,
+parenthood, and current compliance must have distinct meanings.
+Release requires formal equivalence AND an NLI classification of `Equivalent` between
+the original situation and the readback. `Strengthened`, `Weakened`, `Related`,
+`Unrelated`, and `Contradiction` block release. NLI failures retry S1 -> S2 -> S3
+directly using the unchanged original, previous predicate/readback, and NLI label
+and scores. No Claude root-cause diagnosis or stage attribution is requested for
+NLI failures. The retry forbids invented ages, times, supervision and on-duty staff,
+and substituting chaperones for parents. Claude translates; it cannot override the
+gate. Missing NLI dependencies block release as an infrastructure
+error, not a valid failed sample. This gate is an extension to the paper, which uses
+NLI post-hoc and defines its narrower drift measure as Unrelated/Contradiction.
+For decided Alloy counterexamples, diagnosis still repairs the selected stage and
+regenerates its dependents. Both paths share the roundtrip-attempt cap:
+the initial check plus at most cap-minus-one scoped repairs, not separate full
+regenerations. Syntax retries retain their separate cap.
+There is no NLI override. `nli_result.json` saves scores and `nl_fidelity.json` saves
+the gate result; `roundtrip_result.json` separates formal agreement from release.
+`--alloy-timeout` applies to both roundtrip and plan verification (default 600 seconds).
+An Alloy timeout or other undecided equivalence check stops that query without
+translation diagnosis or repair. Saved results distinguish TIMEOUT from DIFFERENT;
+only a decided counterexample or an NLI failure supplies translation-repair evidence.
+`vocabulary_preparation.json` and `roundtrip_repairs.json` save preparation and repair
+evidence. Agreement is bounded by the Alloy scope; NLI is fallible and is not a proof
+of fidelity. `[FULL USER PROMPT]` logs the complete question, while `[X ORIGINAL]`
+logs just the factual situation sent to formalization, not a truncated prompt.
+New query vocabulary does not automatically connect those concepts to protocol rules.
+Failed release remains an unsuccessful full-pipeline sample, not an omitted sample.
+Start a fresh evaluation after this policy change; old release decisions are not
+reused and evaluation manifests record the policy version.
 Results live in `query_stages/<id>/` and are reused for the same prompt text and
 protocol file (`--reformalize` recomputes). A prompt whose formal query is not
 released gets no plan (`UNVERIFIED_QUERY`); `--no-formal-query` skips step 1.
@@ -58,6 +99,25 @@ contradicts the protocol. Those results are not comparable with these.
 
 ## Metrics
 
+### Full-Pipeline-Only Evaluation
+
+For the full-pipeline metric without additional stage-specific LLM sampling:
+
+```bash
+python3 -u alloy_evaluation/plan_verification/full_pipeline_passk_evaluator.py --pass-at-k 5 > results/full_pipeline_eval.log 2>&1
+```
+
+This runs the same query formalization, plan generation, and capped internal
+repair loops, but never branches off independent syntax/logic repair samples.
+It saves all traces under `results/full_pipeline_passk/` and produces only the
+per-prompt and average full-pipeline pass@k charts (PNG and PDF).
+Defaults: usable prompts 3-9, five independent samples per prompt, roundtrip cap
+5, syntax-repair cap 5, logic-repair cap 5, and Alloy timeout 600 seconds (10 minutes).
+
+Resume this script's saved run with `--resume --out-dir <folder>`, or regenerate
+charts without LLM calls using `--plot-only --log <folder>/full_pipeline_passk_log.json`.
+Stage-evaluator output folders are not interchangeable with this script's runs.
+
 ### Eligible Prompts
 
 Prompts 1, 2, and 10 are marked `eval_usable: false` and excluded from new
@@ -75,6 +135,11 @@ python3 -u alloy_evaluation/plan_verification/stage_passk_evaluator.py --pass-at
 Use a fresh output directory, not a resume of a different prompt set. Generated
 data is saved under `results/stage_passk/`. `--prompt-ids 3` selects a single
 eligible prompt; explicitly selecting an unusable prompt is rejected.
+
+Plan verification defaults to `--alloy-timeout 600`: all three solver checks
+share 600 seconds per invocation. This timeout is recorded in the experiment
+configuration. Use a fresh output folder when changing it; do not combine
+samples from different verification budgets into one pass@k estimate.
 
 ### No-loop and with-loop
 
@@ -112,9 +177,9 @@ python3 -m pip install "anthropic==0.86.0" "transformers==4.57.6" torch matplotl
 brew install openjdk
 ```
 
-The query-release gate requires PyTorch and Transformers for BART-MNLI. Its
+The NLI gate uses PyTorch and Transformers for BART-MNLI. Its
 first check downloads and caches `facebook/bart-large-mnli`; it makes no Claude
-API call. If NLI is unavailable, queries are not released for plan generation.
+API call. Unavailable NLI blocks release; formal agreement alone is insufficient.
 
 All LLM stages use Claude through Anthropic, including query formalization,
 roundtrip judgment, plan generation, and repair. One `CLAUDE_MODEL` setting
