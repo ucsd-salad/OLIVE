@@ -75,13 +75,15 @@ class Verdict:
     equivalent: bool
     evidence: str
     counterexample: dict[str, str] | None = None
+    failure_status: str = ""
 
 
 def decide(path: Path, source: str, timeout: int, scope_note: str = "") -> Verdict:
     path.write_text(source, encoding="utf-8")
     result = alloy.execute(path, timeout=timeout)
     if not result.ok:
-        return Verdict(False, False, "Alloy did not accept the equivalence model.\n" + result.error)
+        return Verdict(False, False, "Alloy could not decide equivalence.\n" + result.error,
+                       failure_status="TIMEOUT" if result.timed_out else "ERROR")
     outcomes = result.outcomes
     if outcomes.get("Sanity") != "SAT":
         return Verdict(False, False, "The model has no instance at all, so any check would pass vacuously.")

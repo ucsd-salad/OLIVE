@@ -29,6 +29,7 @@ class Result:
     outcomes: dict[str, str] = field(default_factory=dict)       # command -> SAT | UNSAT
     instances: dict[str, dict[str, str]] = field(default_factory=dict)  # command -> Ctx fields
     worlds: dict[str, str] = field(default_factory=dict)   # command -> every atom's fields, rendered
+    timed_out: bool = False
 
 
 SUMMARY = re.compile(r"^\s*\d+\.\s+(?:run|check)\s+(\S+)\s+.*?\b(UNSAT|SAT)\s*$", re.M)
@@ -53,7 +54,7 @@ def execute(path: Path, *, timeout: int = 120) -> Result:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return Result(False, f"Alloy timed out after {timeout}s")
+        return Result(False, f"Alloy timed out after {timeout}s", timed_out=True)
     text = (process.stdout + process.stderr).strip()
     # Messages name the file by absolute path; the model repairing it only needs the name.
     for directory in {str(path.parent), str(path.parent.resolve())}:
