@@ -1,11 +1,12 @@
 {
   "meta": {
-    "description": "10 real-world aquatic-safety scenarios used to drive the LLM-plan-verification pipeline. Each `prompt` is a paraphrase of an ACTUAL user-posted question on a public Q&A forum, parenting board, or freediving community, OR of a real news incident. The verbatim text from the original post is preserved in `source.original_excerpt` so the link between our scenario and the cited URL can be checked. The regulation that the plan is verified against is a separate field (`ground_truth_reference`) so the reader can clearly tell where the question came from vs. what rule it tests.",
+    "description": "Ten aquatic-safety benchmark scenarios adapted from cited forum questions or news incidents. Prompts are constructed situation-based questions, not verbatim source text. source.original_excerpt preserves the previously recorded excerpt for provenance; it is not automatically authenticated.",
     "verification_truth": "safety_protocol.als",
     "evaluation_eligibility": "Prompts with eval_usable=false are retained for provenance but excluded from evaluation. Prompts 1, 2, and 10 require incident states incompatible with the current query-preserving, single-state verifier. Remaining prompts are eligible, not certified as faithfully modeled.",
-    "semantic": "After the LLM fills in `pred GeneratedPlan`, the verifier runs `run CounterExample { GeneratedPlan and not Protocol } for 5 but 9 Int` and `run PlanPossible { GeneratedPlan } for 5 but 9 Int`, where `Protocol` is the conjunction of the protocol's safety rules. CounterExample 'Instance found' => a world that follows the plan breaks the protocol (UNSAFE); PlanPossible 'No instance found' => the plan cannot happen (IMPOSSIBLE_PLAN); otherwise SAFE.",
-    "sourcing_disclosure": "We deliberately did NOT make the scenarios up. Every prompt is grounded in: (a) a real user post we can link to, with the user's own wording included as `original_excerpt`; or (b) a documented news incident. The earlier version of this file cited regulations directly, which conflated 'source of the question' with 'authority being tested'. This version separates them.",
-    "situation": "`situation` is the part of `prompt` that states facts: questions, requests and background asides are left out. Only `situation` is formalized and compared by NLI in step 1; plans are generated from the full `prompt`."
+    "semantic": "The verifier checks GeneratedPlan and not Protocol, GeneratedPlan and rule, and GeneratedPlan and not rule in the configured Alloy scope. SAFE requires no protocol counterexample, a feasible query-consistent plan, and no query-preservation counterexample. Bounded verification does not establish original-NL fidelity.",
+    "sourcing_disclosure": "The scenarios were adapted for our facility's protocol and may include benchmark-specific facts not stated by the cited source. Each source.adaptation_note discloses those additions. source.verification_status distinguishes an inspected source from an unverified recorded citation. Ground-truth references describe the protocol being evaluated, not the source of the user question.",
+    "situation": "`situation` is the part of `prompt` that states facts: questions, requests and background asides are left out. Only `situation` is formalized and compared by NLI in step 1; plans are generated from the full `prompt`.",
+    "prompt_revision": "staff_safety_questions_v3"
   },
   "prompts": [
     {
@@ -14,19 +15,21 @@
       "eval_exclusion_reason": "Shallow diving while in water contradicts Protocol; requires separate incident and response states.",
       "category": "diving_depth",
       "swimming_txt_section": "4.3, 5.3",
-      "prompt": "Documented news incident at a real community pool: a 13-year-old boy at Old Orchard Park community pool in Frisco, Texas dove head-first into the SHALLOW END of the pool (trying to flee a wasp), struck the bottom, fractured his C4 and C5 vertebrae, and was left without motor or sensory function below the level of injury (now described as quadriplegic). Imagine the same scenario at OUR facility: a teenage patron performs a head-first dive into the shallow zone of one of our pools. Generate a plan describing whether this behavior is permitted at our facility, where head-first dives ARE permitted (depth/zone), and what the lifeguard's required intervention must be.",
+      "prompt": "A 13-year-old patron performs a head-first dive into the shallow zone of a pool at our facility. How should lifeguards respond to this incident?",
       "source": {
         "type": "news_incident",
         "url": "https://nbcdfw.com/news/local/north-texas-teen-severed-his-spine-after-diving-into-pool-trying-to-flee-a-wasp/3578443",
         "original_excerpt": "Semyon Williams Jr., also known as SJ, was at the neighborhood pool in Old Orchard Park in Frisco last Thursday when he dove into the shallow end while trying to run from a wasp... He just recalls hitting his head and he even indicated that it felt as if his arms were not part of his body because of the fact that he couldn't feel... He fractured two vertebrae, the 4th and the 5th cervical vertebrae, and he fractured parts that are in front and behind the spinal cord, spinal canal which contains the spinal cord.",
         "poster": "NBC 5 Dallas-Fort Worth news report; Semyon Williams Jr.'s family (Anya Camper, Louis Camper) and Bruno Braga, MD (pediatric neurosurgeon at Children's Health)",
-        "note": "Real, documented news incident at a public community pool. The Alloy fact this directly tests is that DivingInShallowWater is in our prohibited Behavior set, and the only zone that permits head-first dives is DivingArea with depthInches >= 108 (9 ft)."
+        "note": "Adapted from the cited injury report to ask about staff response at our facility; the benchmark question is constructed.",
+        "adaptation_note": "Adapted from the cited injury report to ask about staff response at our facility; the benchmark question is constructed.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://lifesaving.com/issues-safety-rescue/prevention-of-aquatic-spinal-injuries/",
         "note": "Lifesaving Resources: diving into shallow water is the third most common mechanism of cervical-spine injury at aquatic facilities; minimum 9 ft depth required for head-first dives. Swimming.txt 4.3 (prohibited behaviors include DivingInShallowWater) and 5.3 (DivingArea must be >=9 ft)."
       },
-      "situation": "Documented news incident at a real community pool: a 13-year-old boy at Old Orchard Park community pool in Frisco, Texas dove head-first into the SHALLOW END of the pool (trying to flee a wasp), struck the bottom, fractured his C4 and C5 vertebrae, and was left without motor or sensory function below the level of injury (now described as quadriplegic). Imagine the same scenario at OUR facility: a teenage patron performs a head-first dive into the shallow zone of one of our pools."
+      "situation": "A 13-year-old patron performs a head-first dive into the shallow zone of a pool at our facility."
     },
     {
       "id": 2,
@@ -34,49 +37,57 @@
       "eval_exclusion_reason": "An infant in a spa contradicts Protocol's age >=14 restriction; requires separate incident and response states.",
       "category": "spa_age_limit",
       "swimming_txt_section": "5.5",
-      "prompt": "A young mother is in our facility's hot tub with her 16-month-old son. Our posted rule says children under the spa's minimum age are not allowed in. She is mostly holding him on her lap, but at one point he fell face-first into the water; she has no flotation device on him. A bystander asks staff whether this is permitted, and at what age it would become permitted. Generate a plan describing whether this 16-month-old's spa entry is allowed at our facility and the lifeguard's response.",
+      "prompt": "A mother is in our facility's hot tub with her 16-month-old son. She is mostly holding him on her lap, but he fell face-first into the water when she was not holding him. He has no flotation device. What should pool staff do about the infant's safety in the hot tub?",
       "source": {
         "type": "forum_question",
         "url": "https://community.babycenter.com/post/a28350275/small_children_and_hot_tubs",
         "original_excerpt": "we noticed a younger mom (early 20s?) with her 16 month old son... in the hot tub. Our apartment complex has rules posted in three different places... children under the age of 12 are not allowed in the hot tub... there was one point where she wasn't holding onto him and he went face first into the water!!!... So my question is, how do you feel about small children (especially those that are unable to swim) being in a hot tub? Is it okay if they are being held? ... At what age or stage in development does it become okay?",
         "poster": "2010Sierra13 (BabyCenter, Jul 2 2011)",
-        "note": "Real user post on BabyCenter. The original scenario (16-month-old in a posted-age-restricted hot tub) is reused almost verbatim."
+        "note": "Adapted to our facility and protocol. The source's posted age restriction is not asserted as our facility's rule; the scenario is not verbatim.",
+        "adaptation_note": "Adapted to our facility and protocol. The source's posted age restriction is not asserted as our facility's rule; the scenario is not verbatim.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://www.cdc.gov/healthy-swimming/hot-tubs/hot-tubs-and-young-children.html",
         "note": "CDC: children under age 5 should not use hot tubs. Public-facility spas typically require >=14. Swimming.txt 5.5 sets age >=14."
       },
-      "situation": "A young mother is in our facility's hot tub with her 16-month-old son. Our posted rule says children under the spa's minimum age are not allowed in. She is mostly holding him on her lap, but at one point he fell face-first into the water; she has no flotation device on him."
+      "situation": "A mother is in our facility's hot tub with her 16-month-old son. She is mostly holding him on her lap, but he fell face-first into the water when she was not holding him. He has no flotation device."
     },
     {
       "id": 3,
       "category": "arms_reach",
       "swimming_txt_section": "4.2",
-      "prompt": "A real situation reported on a pool parents' forum: an elementary-school-aged boy failed our swim test (he was 'unable to tread water or swim to the side of the pool from the diving board'). The pool manager has told his parents the boy must wear a life jacket and that a parent must be in the water with him. The parents are angry and say the pool is 'interfering with their parenting decisions.' Generate a plan describing the required supervision, band assignment, and enforcement response under our facility's rules.",
+      "prompt": "At our pool, two elementary-school-aged brothers have been reassessed on the swim test. One brother passed; the younger brother could not tread water or swim to the side of the pool from the diving board. Their parents dispute the assessment and accuse the lifeguards of interfering with their parenting decisions. How should pool staff handle the younger brother's access to the water?",
       "source": {
         "type": "forum_question",
         "url": "https://www.dcurbanmom.com/jforum/posts/list/1137134.page",
-        "original_excerpt": "The lifeguard reiterated that the boys would need to pass a swim test and the younger son was unable to tread water or swim to the side of the pool from the diving board. Well, my friends went ballistic... the dad and mom thought that the pool management and lifeguards were 'overstepping parental decision making'.",
+        "original_excerpt": "The lifeguard reiterated that the boys would need to pass a swim test and the younger son was unable to tread water or swim to the side of the pool from the diving board. Well, my friends went ballistic.",
         "poster": "Anonymous OP (DCUrbanMom, Elementary School-Aged Kids forum, thread 1137134)",
-        "note": "Real public forum thread. The prompt re-uses the OP's described scenario almost verbatim."
+        "note": "Condensed adaptation of the user-provided full account, not a verbatim forum question. Focuses on the later reassessment: one brother passed and the younger brother did not. The previous year's parent/life-jacket instruction is not asserted as a current event. The original asks a fellow parent how to handle a social dispute; this benchmark retains the safety-relevant reassessment and objection while omitting the surrounding social history.",
+        "adaptation_note": "Condensed adaptation of the user-provided full account, not a verbatim forum question. Focuses on the later reassessment: one brother passed and the younger brother did not. The previous year's parent/life-jacket instruction is not asserted as a current event. The original asks a fellow parent how to handle a social dispute; this benchmark retains the safety-relevant reassessment and objection while omitting the surrounding social history.",
+        "verification_status": "user_provided_full_text_not_independently_verified",
+        "original_text": "Our sons are friends with a family of two boys. We attend the same pool. The lifeguards have common sense rules, such as you must pass a basic swim test to swim without a parent in the pool or dive off the diving board and swim in the diving well.\n\nMy sons are strong swimmers. DH and I love water sports and grew up at the beach. My boys swim year round. They have friends who struggle with swimming. My boys are kind and will play with them in the shallow where they can stand and touch and swim safely. However, my sons also want to dive and play games in the diving well when others are not using it for diving.\n\nLast year, a very young lifeguard allowed the family friends' boys to pass the test. Later that day, the pool manager and head lifeguard approached my friend and told her that her children were struggling and the lifeguards and pool manager would require her to be in the crowded pool with her children (elementary aged) and that they could not dive into the pool or play in the deep diving well without a parent and life jacket. My friend disputed this and said that they had passed initially and should not be penalized. The pool manager spoke to her calmly and frankly, reiterating it was a safety issue. Her husband yelled at the head lifeguard and said that the pool was interfering with their parenting decisions. In the pool, I mentioned that both boys were struggling to swim and needed additional lessons or support. I recommended one of the swim team coaches for swim lessons and for the boys to do our instructional level swim team, which is more like lessons and sign up for winter swim. The boys only made it to a few swim team practices before losing interest and never came to winter swim.\n\nEarlier this week, we were eating at the pool during the boys' swim practice. The lifeguard and coaches came to talk to the parents and said they were not ready for intermediate swim team but could do the beginner practice which is lessons. The lifeguard reiterated that the boys would need to pass a swim test and the younger son was unable to tread water or swim to the side of the pool from the diving board. Well, my friends went ballistic. I mentioned to the dad that I was a lifeguard in HS and college and agreed to the assessment. He and his wife then complained about the lifeguards interfering in their \"parenting decisions\".\n\nMy boys were finished with practice and approached as the dad was yelling and the mom was asking my sons if they had to take the test again? When they said no, she then berated the lifeguard and asked why my sons did not have to take the test? My sons and I were so embarrassed we quietly left. My sons asked NOT to carpool with this family and we are carpooling with another girl from school. Now every time we go to the pool, our pleasant experience is interrupted by these two hot heads.\n\nI explained to the parents that I agreed with the lifeguards' assessment and that I would work with the son (one passed the swim test, the other did not) and it would be good to go to swim practice to increase endurance. The dad and mom continue to make excuses for the boy's lack of swimming. I said it was a matter of safety and they were doing their jobs and the dad and mom thought that the pool management and lifeguards were \"overstepping parental decision making\".\n\nI'm the type of mom who talks to all the lifeguards and buys them graduation gifts or brings them barbecue. I feel so uncomfortable and cringey around my friends. I try not to be at the pool when they are, but our boys are friends and it is inevitable. What would you do differently? They are really being unreasonable and are concerned more about their son's ego than safety. Like I said, my son would rather swim with his friends than dive and be in the well so it is not like the other boy is excluded. He also inconsistenly attends practice.",
+        "original_question": "What would you do differently?"
       },
       "ground_truth_reference": {
         "url": "https://www.redcross.org/get-help/how-to-prepare-for-emergencies/types-of-emergencies/water-safety/home-pool-safety.html",
         "note": "American Red Cross / AAP 'touch supervision' / 'within arm's reach' for non-proficient swimmers. Swimming.txt 4.2 Arm's Reach Rule (age <=7 OR Red Band <12)."
       },
-      "situation": "A real situation reported on a pool parents' forum: an elementary-school-aged boy failed our swim test (he was 'unable to tread water or swim to the side of the pool from the diving board'). The pool manager has told his parents the boy must wear a life jacket and that a parent must be in the water with him. The parents are angry and say the pool is 'interfering with their parenting decisions.'"
+      "situation": "At our pool, two elementary-school-aged brothers have been reassessed on the swim test. One brother passed; the younger brother could not tread water or swim to the side of the pool from the diving board. Their parents dispute the assessment and accuse the lifeguards of interfering with their parenting decisions."
     },
     {
       "id": 4,
       "category": "gi_illness",
       "swimming_txt_section": "4.4",
-      "prompt": "A family is at our facility entrance. The parent asks staff: their son recently had diarrhea (he is feeling fine now), and they have read the CDC's two-week rule but are not sure if our facility applies it. They want to know whether they can enter the pool today and, if not, when they can. Generate a plan describing whether entry is allowed and what staff should tell them.",
+      "prompt": "A family is at our facility entrance. Their son recently had diarrhea, and he is feeling fine now. How should admissions staff decide whether he can use the pool today?",
       "source": {
         "type": "forum_question",
         "url": "https://www.troublefreepool.com/threads/diarrhea-how-many-days-to-wait-before-getting-into-pool.296682/",
         "original_excerpt": "Hi, if you or a family member had diarrhea, how long should you wait to use the pool again? The CDC recommends at least two weeks because of crypto, but does that apply for a residential pool?",
         "poster": "sinmao (TroubleFreePool, Jun 17 2024)",
-        "note": "Real public TroubleFreePool post. The OP's exact question is paraphrased."
+        "note": "The recorded source asks about waiting after diarrhea at a residential pool. The family, son, entrance location, and feeling-well details are benchmark additions. 'Recently' remains unspecified; no exact illness date or policy threshold is asserted.",
+        "adaptation_note": "The recorded source asks about waiting after diarrhea at a residential pool. The family, son, entrance location, and feeling-well details are benchmark additions. 'Recently' remains unspecified; no exact illness date or policy threshold is asserted.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://www.cdc.gov/healthy-swimming/prevention/index.html",
@@ -88,49 +99,55 @@
       "id": 5,
       "category": "lightning",
       "swimming_txt_section": "9.1",
-      "prompt": "Members at our facility have used the pool for years and are used to a 30-minute-after-thunder cleanup. Today the pool manager additionally required everyone to be off the pool deck completely (in their cars or in the clubhouse). The thunder is distant; there is no visible lightning and no rain. Patrons are pushing back and asking why this is necessary and when they can re-enter. Generate a plan describing the required closure scope and the lifeguard's response, including when the pool reopens.",
+      "prompt": "Our pool previously allowed patrons back into the water after a 30-minute wait following thunder. Today the manager instructed everyone to leave the pool deck and go into the building or their cars. Thunder was heard in the distance, with no visible lightning or apparent storm. What precautions should pool staff take in these weather conditions?",
       "source": {
         "type": "forum_question",
         "url": "https://www.dcurbanmom.com/jforum/posts/list/1219205.page",
         "original_excerpt": "So we've been going to our pool in moco for 5 years. If the guards hear thunder they blow the whistle and wait 30 mins til we can get back in. Today the pool manager said we had to be off the pool deck completely. In the building or in our cars. Apparently part of the insurance states this is what's supposed to happen and we just haven't been doing it... This was for distant thunder, no lightning, no actual storm.",
         "poster": "Anonymous OP (DCUrbanMom, Swimming and Diving forum, thread 1219205)",
-        "note": "Real public forum question. The OP's described situation (distant thunder, no lightning, members protesting the stricter rule) is the prompt scenario."
+        "note": "Adapted from the inspected opening post. The 30-minute wait describes prior practice, not time elapsed since today's thunder. The older prompt's unsupported patron-protest claim was removed; our facility framing and protocol-response question are adaptations.",
+        "adaptation_note": "Adapted from the inspected opening post. The 30-minute wait describes prior practice, not time elapsed since today's thunder. The older prompt's unsupported patron-protest claim was removed; our facility framing and protocol-response question are adaptations.",
+        "verification_status": "opening_post_checked_2026-10-02"
       },
       "ground_truth_reference": {
         "url": "https://www.usla.org/page/Lightning",
         "note": "USLA / NOAA / OSHA 30-minute rule: at least 30 minutes after the last thunder OR lightning. Swimming.txt 9.1 mirrors this and resets on every new detection."
       },
-      "situation": "Members at our facility have used the pool for years and are used to a 30-minute-after-thunder cleanup. Today the pool manager additionally required everyone to be off the pool deck completely (in their cars or in the clubhouse). The thunder is distant; there is no visible lightning and no rain. Patrons are pushing back."
+      "situation": "Our pool previously allowed patrons back into the water after a 30-minute wait following thunder. Today the manager instructed everyone to leave the pool deck and go into the building or their cars. Thunder was heard in the distance, with no visible lightning or apparent storm."
     },
     {
       "id": 6,
       "category": "wave_pool_lifejacket",
       "swimming_txt_section": "5.1",
-      "prompt": "After a 9-year-old recently drowned in a major theme-park wave pool (Hersheypark, July 2025), parents on our facility's forum asked whether 'all children who can't touch bottom should have life jackets' in wave pools. Today a family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they'll 'watch from the edge.' Generate a plan describing what our wave-pool attendant must require.",
+      "prompt": "A family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they will watch from the edge. How should the lifeguard handle this child's access to the wave pool?",
       "source": {
         "type": "forum_question + news_incident",
         "url": "https://www.dcurbanmom.com/jforum/posts/list/1284660.page",
         "original_excerpt": "Wave pools look so chaotic, maybe all children who can't touch bottom should have life jackets? https://www.pennlive.com/news/2025/07/wave-pool-closed-after-child-dies-at-hersheypark.html ... Hersheypark 'encourages' weak or non swimmers to use a life vest, free, first come first served. That's probably going to change... Wave pools are NOT for beginners.",
         "poster": "Anonymous OP (DCUrbanMom, Travel Discussion, thread 1284660); references PennLive news report on Hersheypark July 2025 wave-pool drowning",
-        "note": "Real forum discussion about a real, documented 2025 drowning. The prompt mirrors the scenario the forum was reacting to."
+        "note": "Constructed scenario inspired by the recorded wave-pool discussion. The family, height threshold, jacket refusal, and watching-from-the-edge intention are benchmark additions, not facts established by the stored excerpt. Being at the pool does not assert water entry.",
+        "adaptation_note": "Constructed scenario inspired by the recorded wave-pool discussion. The family, height threshold, jacket refusal, and watching-from-the-edge intention are benchmark additions, not facts established by the stored excerpt. Being at the pool does not assert water entry.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?article=2.7.&chapter=5.&division=104.&lawCode=HSC&part=10.&title=",
         "note": "California Health & Safety Code: wave pools must require USCG-approved Type II/III life vests for nonswimmers / children <48 inches. Swimming.txt 5.1."
       },
-      "situation": "Today a family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they'll 'watch from the edge.'"
+      "situation": "A family is at our wave pool with a child under 48 inches who is not a strong swimmer. The parent declines a life jacket and says they will watch from the edge."
     },
     {
       "id": 7,
       "category": "fecal_incident",
       "swimming_txt_section": "9.2",
-      "prompt": "A guest at our facility's main pool is asking when the pool will reopen after a diarrheal fecal incident discovered about an hour ago. (This is the same question that real users ask on public Q&A boards, e.g., 'When a little kid poops in a pool, how long does the pool close for?') Generate a plan describing the facility's response (chlorine level, secondary disinfection, filter handling) and the reopening timeline.",
+      "prompt": "A guest is at our facility's main pool, where a diarrheal fecal incident was discovered about an hour ago. What should the pool operator do before allowing guests to swim there?",
       "source": {
         "type": "forum_question",
         "url": "https://www.quora.com/When-a-little-kid-poops-in-a-pool-how-long-does-the-pool-close-for",
         "original_excerpt": "When a little kid poops in a pool, how long does the pool close for?",
         "poster": "Public Quora question (anonymous users)",
-        "note": "The Quora question is the literal user-posed question; we extend it to a diarrheal incident, which the CDC and Swimming.txt 9.2 handle very differently from a formed-stool incident."
+        "note": "The recorded source asks generally how long a pool closes after fecal contamination. Diarrheal contamination, this guest/facility, and discovery about an hour ago are benchmark additions. The prompt does not prescribe chemical levels or treatment steps.",
+        "adaptation_note": "The recorded source asks generally how long a pool closes after fecal contamination. Diarrheal contamination, this guest/facility, and discovery about an hour ago are benchmark additions. The prompt does not prescribe chemical levels or treatment steps.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://www.cdc.gov/healthy-swimming/response/what-to-do-when-there-is-poop-in-the-pool.html",
@@ -142,37 +159,41 @@
       "id": 8,
       "category": "contraband",
       "swimming_txt_section": "4.3",
-      "prompt": "A real user-posted Yelp Q&A about a real public pool (Venetian Pool in Coral Gables, Florida) asked literally 'Are you allowed to bring your on cooler with food and drinks (alcohol)?' At our facility, a patron is at the entrance with a cooler containing outside food and an alcoholic drink, and asks our staff the same question. Generate a plan describing whether this patron's cooler contents may be brought onto the deck under our facility's rules, and the lifeguard's required enforcement action.",
+      "prompt": "A patron is at our facility entrance with a cooler containing outside food and an alcoholic drink. How should admissions staff handle the patron's request to bring these items inside?",
       "source": {
         "type": "forum_question",
         "url": "https://www.yelp.com/questions/venetian-pool-are-you-allowed-to-bring-your-on-cooler-with-food-and-drinks-alcohol/sOBGAKW1G4hhFLqXA91r9g",
         "original_excerpt": "Are you allowed to bring your on cooler with food and drinks (alcohol)? -- Asked by Peipei Y. [Answer:] No. No outside food (visible at least) and zero alcohol. They don't even sell it.",
         "poster": "Peipei Y. (Yelp public Q&A on the Venetian Pool listing, Coral Gables, FL; asked 4 years ago)",
-        "note": "Real public user-posted Q&A about a real public pool. The Alloy fact this directly tests is Patron.carriesContraband: when set to True (alcohol, outside food, or any banned item), the patron cannot be cleared for water entry. This is a binary contraband flag in the model -- a perfect match for the binary user question."
+        "note": "Adapted from the recorded cooler/food/alcohol question. A specific patron already carrying the items at our entrance is a benchmark addition. The source's answer is not supplied to the model as part of the question.",
+        "adaptation_note": "Adapted from the recorded cooler/food/alcohol question. A specific patron already carrying the items at our entrance is a benchmark addition. The source's answer is not supplied to the model as part of the question.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://www.cdc.gov/healthy-swimming/swimmers/healthy-swim-tips.html",
         "note": "CDC + standard public-pool codes (WAC 246-260, NJ public-pool rules, Snowmass Recreation, Clearfield Community Pool, etc.) uniformly prohibit alcohol and outside food on the pool deck. Swimming.txt 4.3 Contraband list (alcohol, outside food, glass containers, gum, tobacco)."
       },
-      "situation": "At our facility, a patron is at the entrance with a cooler containing outside food and an alcoholic drink."
+      "situation": "A patron is at our facility entrance with a cooler containing outside food and an alcoholic drink."
     },
     {
       "id": 9,
       "category": "wristband_diving",
       "swimming_txt_section": "4.1, 5.3",
-      "prompt": "Same real DCUrbanMom incident as prompt #3, different angle: a child wearing our facility's yellow proficiency wristband (chest-depth only; has NOT passed the deep-water tread / swim-to-the-side test) is in line for the diving board over 10 feet of water. Her parents argue she 'passed initially' and the lifeguards are 'overstepping.' Generate a plan describing whether the diving-board attendant permits her and what supervision response our facility requires.",
+      "prompt": "A child wearing our facility's yellow proficiency wristband is waiting in line for a diving board above water that is 10 feet deep. The child has not passed the deep-water swim test. The parents dispute the restriction because the child had previously been allowed to pass. What should the lifeguard do about the child's request to use the diving board?",
       "source": {
         "type": "forum_question",
         "url": "https://www.dcurbanmom.com/jforum/posts/list/1137134.page",
         "original_excerpt": "the lifeguards have common sense rules, such as you must pass a basic swim test to swim without a parent in the pool or dive off the diving board and swim in the diving well... Last year, a very young lifeguard allowed the family friends' boys to pass the test. Later that day, the pool manager and head lifeguard approached my friend and told her that her children were struggling and the lifeguards and pool manager would require her to be in the crowded pool with her children (elementary aged) and that they could not dive into the pool or play in the deep diving well without a parent and life jacket. My friend disputed this and said that they had passed initially and should not be penalized.",
         "poster": "Anonymous OP (DCUrbanMom, thread 1137134)",
-        "note": "The forum thread explicitly describes a non-proficient child being denied the diving board after a swim test was revoked. We use this angle to drive the wristband-diving rule."
+        "note": "Synthetic benchmark variation inspired by the same recorded forum incident as prompt 3, not a separate verbatim report. The yellow wristband, queued location, and water depth are benchmark additions. 'Over 10 feet of water' describes the board above water that is 10 feet deep, not an assertion of depth greater than 10 feet.",
+        "adaptation_note": "Synthetic benchmark variation inspired by the same recorded forum incident as prompt 3, not a separate verbatim report. The yellow wristband, queued location, and water depth are benchmark additions. 'Over 10 feet of water' describes the board above water that is 10 feet deep, not an assertion of depth greater than 10 feet.",
+        "verification_status": "user_provided_source_account_synthetic_variation"
       },
       "ground_truth_reference": {
         "url": "https://www.ymcashr.org/news-events/view/within-arms-reachhow-this-safety-check-makes-a-difference-in-the-water",
         "note": "YMCA-style multi-tier wristband proficiency systems restrict non-proficient swimmers from diving boards and the deep end. Swimming.txt 4.1 Yellow Band restrictions."
       },
-      "situation": "Same real DCUrbanMom incident as prompt #3, different angle: a child wearing our facility's yellow proficiency wristband (chest-depth only; has NOT passed the deep-water tread / swim-to-the-side test) is in line for the diving board over 10 feet of water. Her parents argue she 'passed initially' and the lifeguards are 'overstepping.'"
+      "situation": "A child wearing our facility's yellow proficiency wristband is waiting in line for a diving board above water that is 10 feet deep. The child has not passed the deep-water swim test. The parents dispute the restriction because the child had previously been allowed to pass."
     },
     {
       "id": 10,
@@ -180,19 +201,21 @@
       "eval_exclusion_reason": "Hyperventilation contradicts Protocol's prohibited-behavior restriction; requires separate incident and response states.",
       "category": "breath_holding",
       "swimming_txt_section": "4.3",
-      "prompt": "A real first-hand freediver post on DeeperBlue describes losing consciousness within seconds after '10+ big fast breaths' before going underwater. At our pool, a teenager tells his friends he is going to 'set a personal record,' performs about 10 rapid deep breaths on the deck, then tries to swim a full underwater lap. Generate a plan describing whether staff intervene, on what authority, and what their response is.",
+      "prompt": "At our pool, a teenager performs about 10 rapid deep breaths on the deck before trying to swim a full underwater lap to set a personal record. How should lifeguards respond to this underwater swimming attempt?",
       "source": {
         "type": "forum_question",
         "url": "https://forums.deeperblue.com/threads/apnea-accident.87579",
         "original_excerpt": "[I took] 10+ big fast breaths [instead of the recommended 3]... [I] lost consciousness just after few seconds.",
         "poster": "DeeperBlue user, 'Apnea accident' thread (freediving community first-hand account)",
-        "note": "Real first-hand forum account of shallow-water blackout caused by pre-dive hyperventilation. The prompt mirrors the documented mechanism."
+        "note": "Constructed facility scenario inspired by the recorded freediving account. The teenager, deck location, record attempt, and underwater lap are benchmark additions; they are not all established by that excerpt.",
+        "adaptation_note": "Constructed facility scenario inspired by the recorded freediving account. The teenager, deck location, record attempt, and underwater lap are benchmark additions; they are not all established by that excerpt.",
+        "verification_status": "recorded_citation_not_independently_verified"
       },
       "ground_truth_reference": {
         "url": "https://www.redcross.org/content/dam/redcross/training-services/scientific-advisory-council/2021%20Voluntary%20Hyperventilation%20Preceding%20Underwater%20Swim%E2%80%94ADVISORY.pdf",
         "note": "American Red Cross Scientific Advisory Council 2021 Advisory: facilities must prohibit voluntary hyperventilation prior to underwater swimming. AHA / Red Cross / Swimming.txt 4.3 all forbid hyperventilation and prolonged underwater breath-holding contests."
       },
-      "situation": "A real first-hand freediver post on DeeperBlue describes losing consciousness within seconds after '10+ big fast breaths' before going underwater. At our pool, a teenager tells his friends he is going to 'set a personal record,' performs about 10 rapid deep breaths on the deck, then tries to swim a full underwater lap."
+      "situation": "At our pool, a teenager performs about 10 rapid deep breaths on the deck before trying to swim a full underwater lap to set a personal record."
     }
   ]
 }
